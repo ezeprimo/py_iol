@@ -4,7 +4,7 @@ Cliente para la API de Invertir Online (IOL)
 import httpx
 from typing import Optional, Dict, Any
 from cachetools import cached, TTLCache
-from .constants import TOKEN_URL, API_BASE_URL, USER_AGENT
+from .constants import TOKEN_URL, API_BASE_URL, USER_AGENT, DEFAULT_MARKET, DEFAULT_SETTLEMENT_TERM
 from .models import CotizacionTitulo
 
 
@@ -143,29 +143,55 @@ class IOLClient:
         """
         return self._make_authenticated_request("GET", f"/Cotizaciones/MEP/{symbol}")
     
-    def get_stock_quote(self, symbol: str, market: str = "bCBA") -> CotizacionTitulo:
+    def get_stock_quote(self, symbol: str, market: str = DEFAULT_MARKET, settlement_term: str = DEFAULT_SETTLEMENT_TERM) -> CotizacionTitulo:
         """
         Obtiene la cotización actual de una acción
         
         Args:
             symbol: Símbolo de la acción
-            market: Mercado (por defecto bCBA)
+            market: Mercado (por defecto bCBA). Usar Markets.* para valores válidos
+            settlement_term: Plazo de liquidación (por defecto t1). Usar SettlementTerms.* para valores válidos
             
         Returns:
             Objeto CotizacionTitulo con la cotización actual de la acción
         """
-        data = self._make_authenticated_request("GET", f"/{market}/Titulos/{symbol}/Cotizacion")
+        params = {
+            "mercado": market,
+            "simbolo": symbol,
+            "model.simbolo": symbol,
+            "model.mercado": market,
+            "model.plazo": settlement_term
+        }
+        
+        data = self._make_authenticated_request(
+            "GET", 
+            f"/{market}/Titulos/{symbol}/Cotizacion",
+            params=params
+        )
         return CotizacionTitulo.from_dict(data)
     
-    def get_stock_quote_raw(self, symbol: str, market: str = "bCBA") -> Dict[str, Any]:
+    def get_stock_quote_raw(self, symbol: str, market: str = DEFAULT_MARKET, settlement_term: str = DEFAULT_SETTLEMENT_TERM) -> Dict[str, Any]:
         """
         Obtiene la cotización actual de una acción en formato JSON crudo
         
         Args:
             symbol: Símbolo de la acción
-            market: Mercado (por defecto bCBA)
+            market: Mercado (por defecto bCBA). Usar Markets.* para valores válidos
+            settlement_term: Plazo de liquidación (por defecto t1). Usar SettlementTerms.* para valores válidos
             
         Returns:
             Diccionario con la cotización actual de la acción (formato JSON original)
         """
-        return self._make_authenticated_request("GET", f"/{market}/Titulos/{symbol}/Cotizacion")
+        params = {
+            "mercado": market,
+            "simbolo": symbol,
+            "model.simbolo": symbol,
+            "model.mercado": market,
+            "model.plazo": settlement_term
+        }
+        
+        return self._make_authenticated_request(
+            "GET", 
+            f"/{market}/Titulos/{symbol}/Cotizacion",
+            params=params
+        )
