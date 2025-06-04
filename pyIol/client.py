@@ -5,6 +5,7 @@ import httpx
 from typing import Optional, Dict, Any
 from cachetools import cached, TTLCache
 from .constants import TOKEN_URL, API_BASE_URL, USER_AGENT
+from .models import CotizacionTitulo
 
 
 class IOLAPIError(Exception):
@@ -142,7 +143,7 @@ class IOLClient:
         """
         return self._make_authenticated_request("GET", f"/Cotizaciones/MEP/{symbol}")
     
-    def get_stock_quote(self, symbol: str, market: str = "bCBA") -> Dict[str, Any]:
+    def get_stock_quote(self, symbol: str, market: str = "bCBA") -> CotizacionTitulo:
         """
         Obtiene la cotización actual de una acción
         
@@ -151,6 +152,20 @@ class IOLClient:
             market: Mercado (por defecto bCBA)
             
         Returns:
-            Cotización actual de la acción
+            Objeto CotizacionTitulo con la cotización actual de la acción
+        """
+        data = self._make_authenticated_request("GET", f"/{market}/Titulos/{symbol}/Cotizacion")
+        return CotizacionTitulo.from_dict(data)
+    
+    def get_stock_quote_raw(self, symbol: str, market: str = "bCBA") -> Dict[str, Any]:
+        """
+        Obtiene la cotización actual de una acción en formato JSON crudo
+        
+        Args:
+            symbol: Símbolo de la acción
+            market: Mercado (por defecto bCBA)
+            
+        Returns:
+            Diccionario con la cotización actual de la acción (formato JSON original)
         """
         return self._make_authenticated_request("GET", f"/{market}/Titulos/{symbol}/Cotizacion")
