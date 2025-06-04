@@ -5,7 +5,7 @@ import httpx
 from typing import Optional, Dict, Any
 from cachetools import cached, TTLCache
 from .constants import TOKEN_URL, API_BASE_URL, USER_AGENT, DEFAULT_MARKET, DEFAULT_SETTLEMENT_TERM
-from .models import CotizacionTitulo
+from .models import CotizacionTitulo, DatosTitulo
 
 
 class IOLAPIError(Exception):
@@ -194,4 +194,37 @@ class IOLClient:
             "GET", 
             f"/{market}/Titulos/{symbol}/Cotizacion",
             params=params
+        )
+    
+    def get_stock_data(self, symbol: str, market: str = DEFAULT_MARKET) -> DatosTitulo:
+        """
+        Obtiene los datos básicos de un título
+        
+        Args:
+            symbol: Símbolo del título
+            market: Mercado (por defecto bCBA). Usar Markets.* para valores válidos
+            
+        Returns:
+            Objeto DatosTitulo con los datos básicos del título
+        """
+        data = self._make_authenticated_request(
+            "GET", 
+            f"/{market}/Titulos/{symbol}"
+        )
+        return DatosTitulo.from_dict(data)
+    
+    def get_stock_data_raw(self, symbol: str, market: str = DEFAULT_MARKET) -> Dict[str, Any]:
+        """
+        Obtiene los datos básicos de un título en formato JSON crudo
+        
+        Args:
+            symbol: Símbolo del título
+            market: Mercado (por defecto bCBA). Usar Markets.* para valores válidos
+            
+        Returns:
+            Diccionario con los datos básicos del título (formato JSON original)
+        """
+        return self._make_authenticated_request(
+            "GET", 
+            f"/{market}/Titulos/{symbol}"
         )

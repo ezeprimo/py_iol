@@ -134,3 +134,37 @@ class CotizacionTitulo:
         if self.cierre_anterior > 0:
             return ((self.ultimo_precio - self.cierre_anterior) / self.cierre_anterior) * 100
         return 0.0
+
+
+@dataclass
+class DatosTitulo:
+    """Modelo para los datos básicos de un título"""
+    simbolo: str
+    descripcion: str
+    pais: str
+    mercado: str
+    tipo: str
+    plazo: str
+    moneda: str
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'DatosTitulo':
+        """Crea una instancia de DatosTitulo desde un diccionario"""
+        return cls(
+            simbolo=data.get('simbolo', ''),
+            descripcion=data.get('descripcion', ''),
+            pais=data.get('pais', ''),
+            mercado=data.get('mercado', ''),
+            tipo=data.get('tipo', ''),
+            plazo=data.get('plazo', ''),
+            moneda=data.get('moneda', '')
+        )
+
+    def __str__(self) -> str:
+        """Representación string del objeto"""
+        return (
+            f"{self.descripcion} ({self.simbolo})\n"
+            f"Mercado: {self.mercado} | País: {self.pais}\n"
+            f"Tipo: {self.tipo} | Plazo: {self.plazo}\n"
+            f"Moneda: {self.moneda}"
+        )
