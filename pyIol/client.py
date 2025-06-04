@@ -2,10 +2,10 @@
 Cliente para la API de Invertir Online (IOL)
 """
 import httpx
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, List
 from cachetools import cached, TTLCache
 from .constants import TOKEN_URL, API_BASE_URL, USER_AGENT, DEFAULT_MARKET, DEFAULT_SETTLEMENT_TERM
-from .models import CotizacionTitulo, DatosTitulo
+from .models import CotizacionTitulo, DatosTitulo, OpcionTitulo
 
 
 class IOLAPIError(Exception):
@@ -228,3 +228,87 @@ class IOLClient:
             "GET", 
             f"/{market}/Titulos/{symbol}"
         )
+    
+    def get_stock_options(self, symbol: str, market: str = DEFAULT_MARKET) -> List[OpcionTitulo]:
+        """
+        Obtiene las opciones disponibles para un título
+        
+        Args:
+            symbol: Símbolo del título subyacente (ej: ALUA, GGAL)
+            market: Mercado (por defecto bCBA). Usar Markets.* para valores válidos
+            
+        Returns:
+            Lista de objetos OpcionTitulo con las opciones disponibles
+            
+        Raises:
+            IOLAPIError: Si hay error en la petición a la API
+        """
+        try:
+            data = self._make_authenticated_request(
+                "GET", 
+                f"/{market}/Titulos/{symbol}/Opciones"
+            )
+            
+            # Manejar diferentes tipos de respuesta
+            if data is None:
+                return []
+            elif isinstance(data, list):
+                return [OpcionTitulo.from_dict(option_data) for option_data in data if option_data]
+            elif isinstance(data, dict):
+                # Si la API devuelve un objeto en lugar de una lista
+                if 'opciones' in data and isinstance(data['opciones'], list):
+                    return [OpcionTitulo.from_dict(option_data) for option_data in data['opciones'] if option_data]
+                elif data:  # Si es un solo objeto de opción
+                    return [OpcionTitulo.from_dict(data)]
+            
+            return []
+            
+        except Exception as e:
+            if "404" in str(e) or "Not Found" in str(e):
+                # Endpoint no existe para este símbolo
+                return []
+            else:
+                # Re-lanzar otros errores
+                raise
+    
+    def get_stock_options_raw(self, symbol: str, market: str = DEFAULT_MARKET) -> List[Dict[str, Any]]:
+        """
+        Obtiene las opciones disponibles para un título en formato JSON crudo
+        
+        Args:
+            symbol: Símbolo del título subyacente (ej: ALUA, GGAL)
+            market: Mercado (por defecto bCBA). Usar Markets.* para valores válidos
+            
+        Returns:
+            Lista de diccionarios con las opciones disponibles (formato JSON original)
+            
+        Raises:
+            IOLAPIError: Si hay error en la petición a la API
+        """
+        try:
+            data = self._make_authenticated_request(
+                "GET", 
+                f"/{market}/Titulos/{symbol}/Opciones"
+            )
+            
+            # Manejar diferentes tipos de respuesta
+            if data is None:
+                return []
+            elif isinstance(data, list):
+                return [option_data for option_data in data if option_data]
+            elif isinstance(data, dict):
+                # Si la API devuelve un objeto en lugar de una lista
+                if 'opciones' in data and isinstance(data['opciones'], list):
+                    return data['opciones']
+                elif data:  # Si es un solo objeto de opción
+                    return [data]
+            
+            return []
+            
+        except Exception as e:
+            if "404" in str(e) or "Not Found" in str(e):
+                # Endpoint no existe para este símbolo
+                return []
+            else:
+                # Re-lanzar otros errores
+                raise
