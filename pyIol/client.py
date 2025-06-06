@@ -5,7 +5,7 @@ import httpx
 from typing import Optional, Dict, Any, List, List
 from cachetools import cached, TTLCache
 from .constants import TOKEN_URL, API_BASE_URL, USER_AGENT, DEFAULT_MARKET, DEFAULT_SETTLEMENT_TERM
-from .models import CotizacionTitulo, DatosTitulo, OpcionTitulo
+from .models import CotizacionTitulo, DatosTitulo, OpcionTitulo, InstrumentoPais, InstrumentoPais
 
 
 class IOLAPIError(Exception):
@@ -308,6 +308,83 @@ class IOLClient:
         except Exception as e:
             if "404" in str(e) or "Not Found" in str(e):
                 # Endpoint no existe para este símbolo
+                return []
+            else:
+                # Re-lanzar otros errores
+                raise
+    
+    def get_market_instruments(self, pais: str = "argentina") -> List[InstrumentoPais]:
+        """
+        Obtiene los instrumentos de cotización disponibles para un país
+        
+        Args:
+            pais: Código del país (por defecto 'bCBA' para Argentina)
+            
+        Returns:
+            Lista de objetos InstrumentoPais con los instrumentos disponibles
+            
+        Raises:
+            IOLAPIError: Si hay error en la petición a la API
+        """
+        try:
+            data = self.get_market_instruments_raw(pais)
+            
+            # Manejar diferentes tipos de respuesta
+            if not data:
+                return []
+            
+            # Convertir cada diccionario a un objeto InstrumentoPais
+            instrumentos = []
+            for instrument_data in data:
+                if instrument_data:  # Asegurar que no es None o vacío
+                    instrumentos.append(InstrumentoPais.from_dict(instrument_data))
+            
+            return instrumentos
+            
+        except Exception as e:
+            if "404" in str(e) or "Not Found" in str(e):
+                # Endpoint no existe para este país
+                return []
+            else:
+                # Re-lanzar otros errores
+                raise
+
+    def get_market_instruments_raw(self, pais: str = "argentina") -> List[Dict[str, Any]]:
+        """
+        Obtiene los instrumentos de cotización disponibles para un país (datos en crudo)
+        
+        Args:
+            pais: Código del país (por defecto 'bCBA' para Argentina)
+            
+        Returns:
+            Lista de diccionarios con los instrumentos disponibles (formato JSON original)
+            
+        Raises:
+            IOLAPIError: Si hay error en la petición a la API
+        """
+        try:
+            data = self._make_authenticated_request(
+                "GET", 
+                f"/{pais}/Titulos/Cotizacion/Instrumentos"
+            )
+            
+            # Manejar diferentes tipos de respuesta
+            if data is None:
+                return []
+            elif isinstance(data, list):
+                return [instrument_data for instrument_data in data if instrument_data]
+            elif isinstance(data, dict):
+                # Si la API devuelve un objeto en lugar de una lista
+                if 'instrumentos' in data and isinstance(data['instrumentos'], list):
+                    return data['instrumentos']
+                elif data:  # Si es un solo objeto de instrumento
+                    return [data]
+            
+            return []
+            
+        except Exception as e:
+            if "404" in str(e) or "Not Found" in str(e):
+                # Endpoint no existe para este país
                 return []
             else:
                 # Re-lanzar otros errores

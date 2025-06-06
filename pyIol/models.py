@@ -362,3 +362,24 @@ class OpcionTitulo:
         except:
             pass
         return None
+
+@dataclass
+class InstrumentoPais:
+    """Modelo para los instrumentos de cotización disponibles por país"""
+    instrumento: str
+    pais: str
+    
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'InstrumentoPais':
+        """Crea una instancia de InstrumentoPais desde un diccionario"""
+        return cls(
+            instrumento=data.get('instrumento', ''),
+            pais=data.get('pais', '')
+        )
+
+    def __str__(self) -> str:
+        """Representación string del objeto"""
+        return (
+            f"Instrumento: {self.instrumento} | País: {self.pais}\n"
+        )
