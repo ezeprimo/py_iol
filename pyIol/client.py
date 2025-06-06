@@ -5,7 +5,7 @@ import httpx
 from typing import Optional, Dict, Any, List, List
 from cachetools import cached, TTLCache
 from .constants import TOKEN_URL, API_BASE_URL, USER_AGENT, DEFAULT_MARKET, DEFAULT_SETTLEMENT_TERM
-from .models import CotizacionTitulo, DatosTitulo, OpcionTitulo, InstrumentoPais, InstrumentoPais
+from .models import CotizacionTitulo, DatosTitulo, OpcionTitulo, InstrumentoPais, CotizacionesMasivas, CotizacionesMasivas
 
 
 class IOLAPIError(Exception):
@@ -386,6 +386,102 @@ class IOLClient:
             if "404" in str(e) or "Not Found" in str(e):
                 # Endpoint no existe para este país
                 return []
+            else:
+                # Re-lanzar otros errores
+                raise
+    
+    def get_massive_quotes(self, instrumento: str, pais: str = "argentina") -> CotizacionesMasivas:
+        """
+        Obtiene todas las cotizaciones de un país y tipo de instrumento
+        
+        Args:
+            instrumento: Tipo de instrumento. Valores válidos:
+                        'acciones', 'cedears', 'opciones', 'aDRs', 'titulosPublicos', 
+                        'cauciones', 'cHPD', 'futuros', 'obligacionesNegociables', 'letras'
+            pais: País (por defecto 'argentina')
+            
+        Returns:
+            Objeto CotizacionesMasivas con todas las cotizaciones del instrumento y país
+            
+        Raises:
+            IOLAPIError: Si hay error en la petición a la API
+        """
+        try:
+            # Mapear algunos alias comunes
+            instrumento_map = {
+                'stocks': 'acciones',
+                'bonds': 'titulosPublicos',
+                'options': 'opciones',
+                'futures': 'futuros'
+            }
+            
+            instrumento_final = instrumento_map.get(instrumento.lower(), instrumento)
+            
+            # Construir los parámetros de la query
+            params = {
+                f'cotizacionInstrumentoModel.instrumento': instrumento_final,
+                f'cotizacionInstrumentoModel.pais': pais
+            }
+            
+            data = self._make_authenticated_request(
+                "GET",
+                f"/Cotizaciones/{instrumento_final}/{pais}/Todos",
+                params=params
+            )
+            
+            return CotizacionesMasivas.from_dict(data)
+            
+        except Exception as e:
+            if "404" in str(e) or "Not Found" in str(e):
+                # Si no se encuentra el endpoint, devolver objeto vacío
+                return CotizacionesMasivas(titulos=[])
+            else:
+                # Re-lanzar otros errores
+                raise
+
+    def get_massive_quotes_raw(self, instrumento: str, pais: str = "argentina") -> dict:
+        """
+        Obtiene todas las cotizaciones de un país y tipo de instrumento en formato JSON crudo
+        
+        Args:
+            instrumento: Tipo de instrumento. Valores válidos:
+                        'acciones', 'cedears', 'opciones', 'aDRs', 'titulosPublicos', 
+                        'cauciones', 'cHPD', 'futuros', 'obligacionesNegociables', 'letras'
+            pais: País (por defecto 'argentina')
+            
+        Returns:
+            Diccionario con todas las cotizaciones del instrumento y país (formato JSON original)
+            
+        Raises:
+            IOLAPIError: Si hay error en la petición a la API
+        """
+        try:
+            # Mapear algunos alias comunes
+            instrumento_map = {
+                'stocks': 'acciones',
+                'bonds': 'titulosPublicos',
+                'options': 'opciones',
+                'futures': 'futuros'
+            }
+            
+            instrumento_final = instrumento_map.get(instrumento.lower(), instrumento)
+            
+            # Construir los parámetros de la query
+            params = {
+                f'cotizacionInstrumentoModel.instrumento': instrumento_final,
+                f'cotizacionInstrumentoModel.pais': pais
+            }
+            
+            return self._make_authenticated_request(
+                "GET",
+                f"/Cotizaciones/{instrumento_final}/{pais}/Todos",
+                params=params
+            )
+            
+        except Exception as e:
+            if "404" in str(e) or "Not Found" in str(e):
+                # Si no se encuentra el endpoint, devolver diccionario vacío
+                return {"titulos": []}
             else:
                 # Re-lanzar otros errores
                 raise

@@ -383,3 +383,144 @@ class InstrumentoPais:
         return (
             f"Instrumento: {self.instrumento} | País: {self.pais}\n"
         )
+
+
+@dataclass
+class PuntasCotizacion:
+    """Modelo para las puntas de compra y venta de una cotización"""
+    cantidad_compra: int
+    precio_compra: float
+    precio_venta: float
+    cantidad_venta: int
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'PuntasCotizacion':
+        """Crea una instancia de PuntasCotizacion desde un diccionario"""
+        return cls(
+            cantidad_compra=data.get('cantidadCompra', 0),
+            precio_compra=data.get('precioCompra', 0.0),
+            precio_venta=data.get('precioVenta', 0.0),
+            cantidad_venta=data.get('cantidadVenta', 0)
+        )
+
+
+@dataclass
+class TituloCotizacion:
+    """Modelo para un título en las cotizaciones masivas"""
+    simbolo: str
+    puntas: PuntasCotizacion
+    ultimo_precio: float
+    variacion_porcentual: float
+    apertura: float
+    maximo: float
+    minimo: float
+    ultimo_cierre: float
+    volumen: int
+    cantidad_operaciones: int
+    fecha: datetime
+    tipo_opcion: Optional[str]
+    precio_ejercicio: Optional[float]
+    fecha_vencimiento: Optional[datetime]
+    mercado: str
+    moneda: str
+    descripcion: str
+    plazo: str
+    lamina_minima: int
+    lote: int
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'TituloCotizacion':
+        """Crea una instancia de TituloCotizacion desde un diccionario"""
+        # Parsear la fecha
+        fecha_str = data.get('fecha', '')
+        try:
+            # Intentar parsear la fecha ISO
+            fecha = datetime.fromisoformat(fecha_str.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            # Si no se puede parsear, usar datetime actual
+            fecha = datetime.now()
+        
+        # Parsear fecha de vencimiento si existe
+        fecha_vencimiento = None
+        fecha_venc_str = data.get('fechaVencimiento')
+        if fecha_venc_str:
+            try:
+                fecha_vencimiento = datetime.fromisoformat(fecha_venc_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+        
+        # Parsear las puntas
+        puntas_data = data.get('puntas', {})
+        puntas = PuntasCotizacion.from_dict(puntas_data)
+        
+        return cls(
+            simbolo=data.get('simbolo', ''),
+            puntas=puntas,
+            ultimo_precio=data.get('ultimoPrecio', 0.0),
+            variacion_porcentual=data.get('variacionPorcentual', 0.0),
+            apertura=data.get('apertura', 0.0),
+            maximo=data.get('maximo', 0.0),
+            minimo=data.get('minimo', 0.0),
+            ultimo_cierre=data.get('ultimoCierre', 0.0),
+            volumen=data.get('volumen', 0),
+            cantidad_operaciones=data.get('cantidadOperaciones', 0),
+            fecha=fecha,
+            tipo_opcion=data.get('tipoOpcion'),
+            precio_ejercicio=data.get('precioEjercicio'),
+            fecha_vencimiento=fecha_vencimiento,
+            mercado=data.get('mercado', ''),
+            moneda=data.get('moneda', ''),
+            descripcion=data.get('descripcion', ''),
+            plazo=data.get('plazo', ''),
+            lamina_minima=data.get('laminaMinima', 1),
+            lote=data.get('lote', 1)
+        )
+
+    def __str__(self) -> str:
+        """Representación string del objeto"""
+        return (
+            f"{self.simbolo} - {self.descripcion}\n"
+            f"Último precio: ${self.ultimo_precio} | Variación: {self.variacion_porcentual}%\n"
+            f"Apertura: ${self.apertura} | Máximo: ${self.maximo} | Mínimo: ${self.minimo}\n"
+            f"Compra: ${self.puntas.precio_compra} ({self.puntas.cantidad_compra}) | "
+            f"Venta: ${self.puntas.precio_venta} ({self.puntas.cantidad_venta})\n"
+            f"Volumen: {self.volumen:,} | Operaciones: {self.cantidad_operaciones}\n"
+            f"Mercado: {self.mercado} | Moneda: {self.moneda} | Plazo: {self.plazo}"
+        )
+
+
+@dataclass
+class CotizacionesMasivas:
+    """Modelo para la respuesta de cotizaciones masivas"""
+    titulos: List[TituloCotizacion]
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'CotizacionesMasivas':
+        """Crea una instancia de CotizacionesMasivas desde un diccionario"""
+        titulos_data = data.get('titulos', [])
+        titulos = [TituloCotizacion.from_dict(titulo_data) for titulo_data in titulos_data]
+        
+        return cls(titulos=titulos)
+
+    def __str__(self) -> str:
+        """Representación string del objeto"""
+        return f"Cotizaciones masivas: {len(self.titulos)} títulos"
+
+    def get_by_symbol(self, simbolo: str) -> Optional[TituloCotizacion]:
+        """Busca un título por su símbolo"""
+        for titulo in self.titulos:
+            if titulo.simbolo == simbolo:
+                return titulo
+        return None
+
+    def filter_by_market(self, mercado: str) -> List[TituloCotizacion]:
+        """Filtra títulos por mercado"""
+        return [titulo for titulo in self.titulos if titulo.mercado == mercado]
+
+    def sort_by_variation(self, ascending: bool = False):
+        """Ordena títulos por variación porcentual"""
+        return sorted(self.titulos, key=lambda t: t.variacion_porcentual, reverse=not ascending)
+
+    def sort_by_volume(self, ascending: bool = False):
+        """Ordena títulos por volumen"""
+        return sorted(self.titulos, key=lambda t: t.volumen, reverse=not ascending)
