@@ -5,7 +5,7 @@ import httpx
 from typing import Optional, Dict, Any, List, List
 from cachetools import cached, TTLCache
 from .constants import TOKEN_URL, API_BASE_URL, USER_AGENT, DEFAULT_MARKET, DEFAULT_SETTLEMENT_TERM
-from .models import CotizacionTitulo, DatosTitulo, OpcionTitulo, InstrumentoPais, CotizacionesMasivas, CotizacionesMasivas
+from .models import CotizacionTitulo, DatosTitulo, OpcionTitulo, InstrumentoPais, CotizacionesMasivas, CotizacionDetallada
 
 
 class IOLAPIError(Exception):
@@ -585,3 +585,52 @@ class IOLClient:
             else:
                 # Re-lanzar otros errores
                 raise
+    
+    def get_stock_quote_detailed(self, simbolo: str, mercado: str = "bCBA") -> 'CotizacionDetallada':
+        """
+        Obtiene la cotización detallada de un título específico
+        
+        Args:
+            simbolo: Símbolo del título (ej: "ALUA", "GGAL")
+            mercado: Mercado del título (por defecto "bCBA")
+            
+        Returns:
+            CotizacionDetallada con información completa del título
+            
+        Raises:
+            IOLAPIError: Si hay error en la consulta
+        """
+        from .models import CotizacionDetallada
+        
+        try:
+            endpoint = f"{mercado}/Titulos/{simbolo}/CotizacionDetalle"
+            data = self._make_authenticated_request("GET", endpoint)
+            
+            if data:
+                return CotizacionDetallada.from_dict(data)
+            else:
+                raise IOLAPIError(f"No se pudo obtener cotización detallada para {simbolo}")
+                
+        except Exception as e:
+            raise IOLAPIError(f"Error obteniendo cotización detallada de {simbolo}: {str(e)}")
+
+    def get_stock_quote_detailed_raw(self, simbolo: str, mercado: str = "bCBA") -> dict:
+        """
+        Obtiene la cotización detallada de un título en formato JSON crudo
+        
+        Args:
+            simbolo: Símbolo del título (ej: "ALUA", "GGAL") 
+            mercado: Mercado del título (por defecto "bCBA")
+            
+        Returns:
+            Diccionario con la respuesta JSON cruda de la API
+            
+        Raises:
+            IOLAPIError: Si hay error en la consulta
+        """
+        try:
+            endpoint = f"{mercado}/Titulos/{simbolo}/CotizacionDetalle"
+            return self._make_authenticated_request("GET", endpoint)
+                
+        except Exception as e:
+            raise IOLAPIError(f"Error obteniendo cotización detallada RAW de {simbolo}: {str(e)}")
