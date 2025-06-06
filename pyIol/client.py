@@ -485,3 +485,103 @@ class IOLClient:
             else:
                 # Re-lanzar otros errores
                 raise
+    
+    def get_panel_quotes(self, instrumento: str, panel: str, pais: str = "argentina") -> CotizacionesMasivas:
+        """
+        Obtiene las cotizaciones de un panel específico
+        
+        Args:
+            instrumento: Tipo de instrumento. Valores válidos:
+                        'acciones', 'cedears', 'opciones', 'aDRs', 'titulosPublicos', 
+                        'cauciones', 'cHPD', 'futuros', 'obligacionesNegociables', 'letras'
+            panel: Nombre del panel (ej: 'merval', 'general', 'lideres')
+            pais: País (por defecto 'argentina')
+            
+        Returns:
+            Objeto CotizacionesMasivas con las cotizaciones del panel específico
+            
+        Raises:
+            IOLAPIError: Si hay error en la petición a la API
+        """
+        try:
+            # Mapear algunos alias comunes
+            instrumento_map = {
+                'stocks': 'acciones',
+                'bonds': 'titulosPublicos',
+                'options': 'opciones',
+                'futures': 'futuros'
+            }
+            
+            instrumento_final = instrumento_map.get(instrumento.lower(), instrumento)
+            
+            # Construir los parámetros de la query
+            params = {
+                f'panelCotizacion.instrumento': instrumento_final,
+                f'panelCotizacion.panel': panel,
+                f'panelCotizacion.pais': pais
+            }
+            
+            data = self._make_authenticated_request(
+                "GET",
+                f"/Cotizaciones/{instrumento_final}/{panel}/{pais}",
+                params=params
+            )
+            
+            return CotizacionesMasivas.from_dict(data)
+            
+        except Exception as e:
+            if "404" in str(e) or "Not Found" in str(e):
+                # Si no se encuentra el endpoint, devolver objeto vacío
+                return CotizacionesMasivas(titulos=[])
+            else:
+                # Re-lanzar otros errores
+                raise
+
+    def get_panel_quotes_raw(self, instrumento: str, panel: str, pais: str = "argentina") -> dict:
+        """
+        Obtiene las cotizaciones de un panel específico en formato JSON crudo
+        
+        Args:
+            instrumento: Tipo de instrumento. Valores válidos:
+                        'acciones', 'cedears', 'opciones', 'aDRs', 'titulosPublicos', 
+                        'cauciones', 'cHPD', 'futuros', 'obligacionesNegociables', 'letras'
+            panel: Nombre del panel (ej: 'merval', 'general', 'lideres')
+            pais: País (por defecto 'argentina')
+            
+        Returns:
+            Diccionario con las cotizaciones del panel específico (formato JSON original)
+            
+        Raises:
+            IOLAPIError: Si hay error en la petición a la API
+        """
+        try:
+            # Mapear algunos alias comunes
+            instrumento_map = {
+                'stocks': 'acciones',
+                'bonds': 'titulosPublicos',
+                'options': 'opciones',
+                'futures': 'futuros'
+            }
+            
+            instrumento_final = instrumento_map.get(instrumento.lower(), instrumento)
+            
+            # Construir los parámetros de la query
+            params = {
+                f'panelCotizacion.instrumento': instrumento_final,
+                f'panelCotizacion.panel': panel,
+                f'panelCotizacion.pais': pais
+            }
+            
+            return self._make_authenticated_request(
+                "GET",
+                f"/Cotizaciones/{instrumento_final}/{panel}/{pais}",
+                params=params
+            )
+            
+        except Exception as e:
+            if "404" in str(e) or "Not Found" in str(e):
+                # Si no se encuentra el endpoint, devolver diccionario vacío
+                return {"titulos": []}
+            else:
+                # Re-lanzar otros errores
+                raise
