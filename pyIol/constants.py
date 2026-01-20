@@ -25,6 +25,36 @@ class SettlementTerms:
     T2 = "t2"    # Liquidación a 2 días
     T3 = "t3"    # Liquidación a 3 días
 
+# Constantes para estados de operación
+class OperationStates:
+    """Estados de operación para filtros"""
+    ALL = "todas"
+    PENDING = "pendientes"
+    FINISHED = "terminadas"
+    CANCELLED = "canceladas"
+
+# Constantes para países
+class Countries:
+    """Países disponibles en la API"""
+    ARGENTINA = "argentina"
+    USA = "estados_Unidos"
+
+# Constantes para estados de CPD (Cheques de Pago Diferido)
+class CPDStates:
+    """Estados de cheques para filtros de CPD"""
+    VIGENTES = "vigentes"      # Cheques vigentes para operar
+    VENCIDOS = "vencidos"      # Cheques vencidos
+    TODOS = "todos"            # Todos los cheques
+
+# Constantes para segmentos de CPD
+class CPDSegments:
+    """Segmentos de cheques de pago diferido"""
+    AVALADOS = "avalados"            # Cheques avalados por SGR
+    PATROCINADOS = "patrocinados"    # Cheques patrocinados
+    GARANTIZADOS = "garantizados"    # Cheques garantizados
+    TODOS = "todos"                  # Todos los segmentos
+
 # Valores por defecto
 DEFAULT_MARKET = Markets.BCBA
 DEFAULT_SETTLEMENT_TERM = SettlementTerms.T1
+DEFAULT_COUNTRY = Countries.ARGENTINA

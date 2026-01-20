@@ -394,8 +394,18 @@ class PuntasCotizacion:
     cantidad_venta: int
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'PuntasCotizacion':
-        """Crea una instancia de PuntasCotizacion desde un diccionario"""
+    def from_dict(cls, data) -> 'PuntasCotizacion':
+        """Crea una instancia de PuntasCotizacion desde un diccionario
+        
+        Maneja el caso cuando data es None o no es un diccionario.
+        """
+        if data is None or not isinstance(data, dict):
+            return cls(
+                cantidad_compra=0,
+                precio_compra=0.0,
+                precio_venta=0.0,
+                cantidad_venta=0
+            )
         return cls(
             cantidad_compra=data.get('cantidadCompra', 0),
             precio_compra=data.get('precioCompra', 0.0),
@@ -495,9 +505,26 @@ class CotizacionesMasivas:
     titulos: List[TituloCotizacion]
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'CotizacionesMasivas':
-        """Crea una instancia de CotizacionesMasivas desde un diccionario"""
-        titulos_data = data.get('titulos', [])
+    def from_dict(cls, data) -> 'CotizacionesMasivas':
+        """Crea una instancia de CotizacionesMasivas desde un diccionario o lista
+        
+        La API puede devolver:
+        - Un diccionario con clave 'titulos' que contiene la lista
+        - Directamente una lista de títulos
+        """
+        # Si es None, devolver vacío
+        if data is None:
+            return cls(titulos=[])
+        
+        # Si es una lista, usarla directamente
+        if isinstance(data, list):
+            titulos_data = data
+        # Si es un diccionario, buscar la clave 'titulos'
+        elif isinstance(data, dict):
+            titulos_data = data.get('titulos', [])
+        else:
+            titulos_data = []
+        
         titulos = [TituloCotizacion.from_dict(titulo_data) for titulo_data in titulos_data]
         
         return cls(titulos=titulos)
@@ -676,3 +703,1549 @@ class CotizacionDetallada:
     def profundidad_libro(self) -> int:
         """Retorna el número de niveles de puntas disponibles"""
         return len(self.puntas)
+
+
+# =============================================================================
+# MODELOS DE ESTADO DE CUENTA Y PORTAFOLIO
+# =============================================================================
+
+@dataclass
+class Saldo:
+    """Modelo para los saldos por plazo de liquidación"""
+    liquidacion: str          # "inmediato", "hrs24", "hrs48", "hrs72", etc.
+    saldo: float
+    comprometido: float
+    disponible: float
+    disponible_operar: float
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Saldo':
+        """Crea una instancia de Saldo desde un diccionario"""
+        return cls(
+            liquidacion=data.get('liquidacion', ''),
+            saldo=data.get('saldo', 0.0),
+            comprometido=data.get('comprometido', 0.0),
+            disponible=data.get('disponible', 0.0),
+            disponible_operar=data.get('disponibleOperar', 0.0)
+        )
+
+    def __str__(self) -> str:
+        return f"{self.liquidacion}: ${self.disponible:,.2f} disponible"
+
+
+@dataclass
+class Cuenta:
+    """Modelo para una cuenta del estado de cuenta"""
+    numero: str
+    tipo: str
+    moneda: str
+    disponible: float
+    comprometido: float
+    saldo: float
+    titulo_valorizado: float
+    total: float
+    margen_descubierto: float
+    saldos: List['Saldo']
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Cuenta':
+        """Crea una instancia de Cuenta desde un diccionario"""
+        saldos_data = data.get('saldos', [])
+        saldos = [Saldo.from_dict(s) for s in saldos_data] if saldos_data else []
+        
+        return cls(
+            numero=data.get('numero', ''),
+            tipo=data.get('tipo', ''),
+            moneda=data.get('moneda', ''),
+            disponible=data.get('disponible', 0.0),
+            comprometido=data.get('comprometido', 0.0),
+            saldo=data.get('saldo', 0.0),
+            titulo_valorizado=data.get('tituloValorizado', 0.0),
+            total=data.get('total', 0.0),
+            margen_descubierto=data.get('margenDescubierto', 0.0),
+            saldos=saldos
+        )
+
+    def __str__(self) -> str:
+        return (
+            f"Cuenta {self.numero} ({self.tipo}) - {self.moneda}\n"
+            f"Saldo: ${self.saldo:,.2f} | Disponible: ${self.disponible:,.2f}\n"
+            f"Títulos: ${self.titulo_valorizado:,.2f} | Total: ${self.total:,.2f}"
+        )
+
+
+@dataclass
+class EstadoCuenta:
+    """Modelo para el estado de cuenta completo"""
+    cuentas: List[Cuenta]
+    total_en_pesos: float
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'EstadoCuenta':
+        """Crea una instancia de EstadoCuenta desde un diccionario"""
+        cuentas_data = data.get('cuentas', [])
+        cuentas = [Cuenta.from_dict(c) for c in cuentas_data] if cuentas_data else []
+        
+        return cls(
+            cuentas=cuentas,
+            total_en_pesos=data.get('totalEnPesos', 0.0)
+        )
+
+    def __str__(self) -> str:
+        return f"Estado de Cuenta: {len(self.cuentas)} cuenta(s) | Total: ${self.total_en_pesos:,.2f}"
+
+    def get_cuenta_por_moneda(self, moneda: str) -> Optional[Cuenta]:
+        """Busca una cuenta por moneda (pesos, dolares, etc.)"""
+        for cuenta in self.cuentas:
+            if cuenta.moneda.lower() == moneda.lower():
+                return cuenta
+        return None
+
+    @property
+    def cuenta_pesos(self) -> Optional[Cuenta]:
+        """Retorna la cuenta en pesos si existe"""
+        return self.get_cuenta_por_moneda('peso_Argentino')
+
+    @property
+    def cuenta_dolares(self) -> Optional[Cuenta]:
+        """Retorna la cuenta en dólares si existe"""
+        return self.get_cuenta_por_moneda('dolar_Estadounidense')
+
+
+@dataclass
+class TituloInfo:
+    """Modelo para la información básica de un título (dentro de un activo del portafolio)"""
+    simbolo: str
+    descripcion: str
+    pais: str
+    mercado: str
+    tipo: str
+    plazo: str
+    moneda: str
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'TituloInfo':
+        """Crea una instancia de TituloInfo desde un diccionario"""
+        if data is None:
+            data = {}
+        return cls(
+            simbolo=data.get('simbolo', ''),
+            descripcion=data.get('descripcion', ''),
+            pais=data.get('pais', ''),
+            mercado=data.get('mercado', ''),
+            tipo=data.get('tipo', ''),
+            plazo=data.get('plazo', ''),
+            moneda=data.get('moneda', '')
+        )
+
+
+@dataclass
+class TituloPortafolio:
+    """Modelo para un activo en el portafolio (representa una posición)"""
+    # Datos de la posición
+    cantidad: int
+    comprometido: int
+    puntos_variacion: float
+    variacion_diaria: float
+    ultimo_precio: float
+    ppc: float  # Precio Promedio de Compra
+    ganancia_porcentaje: float
+    ganancia_dinero: float
+    valorizado: float
+    parking: Optional[float]
+    # Datos del título
+    titulo: TituloInfo
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'TituloPortafolio':
+        """Crea una instancia de TituloPortafolio desde un diccionario"""
+        titulo_data = data.get('titulo', {})
+        titulo = TituloInfo.from_dict(titulo_data)
+        
+        return cls(
+            cantidad=data.get('cantidad', 0),
+            comprometido=data.get('comprometido', 0),
+            puntos_variacion=data.get('puntosVariacion', 0.0),
+            variacion_diaria=data.get('variacionDiaria', 0.0),
+            ultimo_precio=data.get('ultimoPrecio', 0.0),
+            ppc=data.get('ppc', 0.0),
+            ganancia_porcentaje=data.get('gananciaPorcentaje', 0.0),
+            ganancia_dinero=data.get('gananciaDinero', 0.0),
+            valorizado=data.get('valorizado', 0.0),
+            parking=data.get('parking'),
+            titulo=titulo
+        )
+
+    def __str__(self) -> str:
+        signo = '+' if self.ganancia_porcentaje >= 0 else ''
+        return (
+            f"{self.simbolo} - {self.titulo.descripcion}\n"
+            f"Cantidad: {self.cantidad} | Precio: ${self.ultimo_precio:,.2f}\n"
+            f"Valorizado: ${self.valorizado:,.2f} | "
+            f"Ganancia: {signo}{self.ganancia_porcentaje:.2f}%"
+        )
+
+    @property
+    def simbolo(self) -> str:
+        """Atajo para obtener el símbolo del título"""
+        return self.titulo.simbolo
+
+    @property
+    def descripcion(self) -> str:
+        """Atajo para obtener la descripción del título"""
+        return self.titulo.descripcion
+
+    @property
+    def tipo(self) -> str:
+        """Atajo para obtener el tipo del título"""
+        return self.titulo.tipo
+
+    @property
+    def mercado(self) -> str:
+        """Atajo para obtener el mercado del título"""
+        return self.titulo.mercado
+
+    @property
+    def moneda(self) -> str:
+        """Atajo para obtener la moneda del título"""
+        return self.titulo.moneda
+
+    @property
+    def cantidad_disponible(self) -> int:
+        """Retorna la cantidad disponible (no comprometida)"""
+        return self.cantidad - self.comprometido
+
+
+# Mantener Activo como alias por compatibilidad hacia atrás
+Activo = TituloPortafolio
+
+
+@dataclass
+class Portafolio:
+    """Modelo para el portafolio completo"""
+    pais: str
+    activos: List[TituloPortafolio]  # Lista de posiciones (antes llamadas "activos" en la API)
+    total_en_pesos: float
+
+    @classmethod
+    def from_dict(cls, data: dict, pais: str = "argentina") -> 'Portafolio':
+        """Crea una instancia de Portafolio desde un diccionario"""
+        activos_data = data.get('activos', [])
+        activos = [TituloPortafolio.from_dict(a) for a in activos_data] if activos_data else []
+        
+        # El país puede venir en el JSON o pasarse como parámetro
+        pais_data = data.get('pais', pais)
+        
+        return cls(
+            pais=pais_data,
+            activos=activos,
+            total_en_pesos=data.get('totalEnPesos', 0.0)
+        )
+
+    def __str__(self) -> str:
+        return f"Portafolio {self.pais}: {len(self.activos)} título(s) | Total: ${self.total_en_pesos:,.2f}"
+
+    def get_titulo(self, simbolo: str) -> Optional[TituloPortafolio]:
+        """Busca un título por símbolo en el portafolio"""
+        for activo in self.activos:
+            if activo.simbolo.upper() == simbolo.upper():
+                return activo
+        return None
+
+    @property
+    def todos_los_titulos(self) -> List[TituloPortafolio]:
+        """Retorna todos los títulos del portafolio (alias de activos para compatibilidad)"""
+        return self.activos
+
+    def filtrar_por_tipo(self, tipo: str) -> List[TituloPortafolio]:
+        """Filtra los títulos por tipo (ACCIONES, CEDEARS, etc.)"""
+        return [a for a in self.activos if a.tipo.upper() == tipo.upper()]
+
+    @property
+    def total_valorizado(self) -> float:
+        """Retorna el total valorizado del portafolio"""
+        return sum(a.valorizado for a in self.activos)
+
+    @property
+    def total_ganancia(self) -> float:
+        """Retorna la ganancia total en dinero del portafolio"""
+        return sum(a.ganancia_dinero for a in self.activos)
+
+
+@dataclass
+class Operacion:
+    """Modelo para una operación"""
+    numero: int
+    fecha_ordenado: datetime
+    tipo: str                  # "Compra", "Venta"
+    estado: str                # "pendiente", "terminada", "cancelada"
+    mercado: str
+    simbolo: str
+    cantidad: Optional[int]
+    cantidad_operada: Optional[int]
+    precio: Optional[float]
+    monto: Optional[float]
+    modalidad: str
+    plazo: str
+    validez: Optional[datetime]
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Operacion':
+        """Crea una instancia de Operacion desde un diccionario"""
+        # Parsear fecha ordenado
+        fecha_ordenado_str = data.get('fechaOrdenado', '')
+        try:
+            fecha_ordenado = datetime.fromisoformat(fecha_ordenado_str.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            fecha_ordenado = datetime.now()
+        
+        # Parsear validez (puede ser null)
+        validez = None
+        validez_str = data.get('validez')
+        if validez_str:
+            try:
+                validez = datetime.fromisoformat(validez_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+        
+        return cls(
+            numero=data.get('numero', 0),
+            fecha_ordenado=fecha_ordenado,
+            tipo=data.get('tipo', ''),
+            estado=data.get('estado', ''),
+            mercado=data.get('mercado', ''),
+            simbolo=data.get('simbolo', ''),
+            cantidad=data.get('cantidad'),
+            cantidad_operada=data.get('cantidadOperada'),
+            precio=data.get('precio'),
+            monto=data.get('monto'),
+            modalidad=data.get('modalidad', ''),
+            plazo=data.get('plazo', ''),
+            validez=validez
+        )
+
+    def __str__(self) -> str:
+        precio_str = f"${self.precio:,.2f}" if self.precio is not None else "N/A"
+        monto_str = f"${self.monto:,.2f}" if self.monto is not None else "N/A"
+        cantidad_str = f"{self.cantidad_operada or 0}/{self.cantidad or 0}"
+        return (
+            f"Op #{self.numero} - {self.tipo} {self.simbolo}\n"
+            f"Estado: {self.estado} | Cantidad: {cantidad_str}\n"
+            f"Precio: {precio_str} | Monto: {monto_str}\n"
+            f"Fecha: {self.fecha_ordenado.strftime('%Y-%m-%d %H:%M')}"
+        )
+
+    @property
+    def esta_pendiente(self) -> bool:
+        """Retorna True si la operación está pendiente"""
+        return self.estado.lower() == 'pendiente'
+
+    @property
+    def esta_terminada(self) -> bool:
+        """Retorna True si la operación está terminada"""
+        return self.estado.lower() == 'terminada'
+
+    @property
+    def esta_cancelada(self) -> bool:
+        """Retorna True si la operación está cancelada"""
+        return self.estado.lower() == 'cancelada'
+
+    @property
+    def porcentaje_ejecutado(self) -> float:
+        """Retorna el porcentaje ejecutado de la operación"""
+        if self.cantidad and self.cantidad > 0 and self.cantidad_operada is not None:
+            return (self.cantidad_operada / self.cantidad) * 100
+        return 0.0
+
+
+@dataclass
+class OperacionDetalle(Operacion):
+    """Modelo para el detalle completo de una operación (hereda de Operacion)"""
+    precio_promedio: float = 0.0
+    monto_operado: float = 0.0
+    arancel: float = 0.0
+    iva_arancel: float = 0.0
+    derechos_mercado: float = 0.0
+    iva_derechos_mercado: float = 0.0
+    descripcion: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'OperacionDetalle':
+        """Crea una instancia de OperacionDetalle desde un diccionario"""
+        # Parsear fecha ordenado
+        fecha_ordenado_str = data.get('fechaOrdenado', '')
+        try:
+            fecha_ordenado = datetime.fromisoformat(fecha_ordenado_str.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            fecha_ordenado = datetime.now()
+        
+        # Parsear validez (puede ser null)
+        validez = None
+        validez_str = data.get('validez')
+        if validez_str:
+            try:
+                validez = datetime.fromisoformat(validez_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+        
+        return cls(
+            numero=data.get('numero', 0),
+            fecha_ordenado=fecha_ordenado,
+            tipo=data.get('tipo', ''),
+            estado=data.get('estado', ''),
+            mercado=data.get('mercado', ''),
+            simbolo=data.get('simbolo', ''),
+            cantidad=data.get('cantidad', 0),
+            cantidad_operada=data.get('cantidadOperada', 0),
+            precio=data.get('precio', 0.0),
+            monto=data.get('monto', 0.0),
+            modalidad=data.get('modalidad', ''),
+            plazo=data.get('plazo', ''),
+            validez=validez,
+            precio_promedio=data.get('precioPromedio', 0.0),
+            monto_operado=data.get('montoOperado', 0.0),
+            arancel=data.get('arancel', 0.0),
+            iva_arancel=data.get('ivaArancel', 0.0),
+            derechos_mercado=data.get('derechosMercado', 0.0),
+            iva_derechos_mercado=data.get('ivaDerechosMercado', 0.0),
+            descripcion=data.get('descripcion', '')
+        )
+
+    def __str__(self) -> str:
+        base = super().__str__()
+        return (
+            f"{base}\n"
+            f"Precio promedio: ${self.precio_promedio:,.2f}\n"
+            f"Arancel: ${self.arancel:,.2f} (IVA: ${self.iva_arancel:,.2f})\n"
+            f"Derechos mercado: ${self.derechos_mercado:,.2f} (IVA: ${self.iva_derechos_mercado:,.2f})"
+        )
+
+    @property
+    def costo_total(self) -> float:
+        """Calcula el costo total de comisiones e impuestos"""
+        return self.arancel + self.iva_arancel + self.derechos_mercado + self.iva_derechos_mercado
+
+
+# =============================================================================
+# MODELOS DE TRADING (COMPRA/VENTA)
+# =============================================================================
+
+@dataclass
+class OrdenOperacion:
+    """
+    Modelo para una orden de compra o venta.
+    Representa los datos necesarios para enviar una orden al mercado.
+    """
+    mercado: str               # Mercado (ej: "bCBA")
+    simbolo: str               # Símbolo del título (ej: "GGAL")
+    cantidad: int              # Cantidad de títulos a operar
+    precio: float              # Precio límite de la operación
+    plazo: str                 # Plazo de liquidación (ej: "t2")
+    validez: Optional[datetime] = None  # Fecha de validez de la orden
+
+    def to_dict(self) -> dict:
+        """Convierte la orden a un diccionario para enviar a la API"""
+        data = {
+            "mercado": self.mercado,
+            "simbolo": self.simbolo,
+            "cantidad": self.cantidad,
+            "precio": self.precio,
+            "plazo": self.plazo
+        }
+        if self.validez:
+            data["validez"] = self.validez.isoformat()
+        return data
+
+    def __str__(self) -> str:
+        validez_str = f" (válida hasta {self.validez.strftime('%Y-%m-%d')})" if self.validez else ""
+        return (
+            f"Orden: {self.simbolo} x {self.cantidad} @ ${self.precio:,.2f}\n"
+            f"Mercado: {self.mercado} | Plazo: {self.plazo}{validez_str}"
+        )
+
+
+@dataclass
+class ResultadoOrden:
+    """
+    Modelo para el resultado de una orden de compra o venta.
+    Contiene la información devuelta por la API tras enviar una orden.
+    """
+    numero_operacion: int          # Número de la operación asignado por IOL
+    ok: bool                       # Si la orden fue aceptada
+    mensaje: Optional[str] = None  # Mensaje de la API (si hay)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ResultadoOrden':
+        """Crea una instancia de ResultadoOrden desde un diccionario"""
+        # La API puede devolver diferentes formatos
+        # Intentamos manejar los más comunes
+        numero = data.get('numeroOperacion', data.get('numero', 0))
+        ok = data.get('ok', True) if 'ok' in data else (numero > 0)
+        mensaje = data.get('mensaje', data.get('message', None))
+        
+        return cls(
+            numero_operacion=numero,
+            ok=ok,
+            mensaje=mensaje
+        )
+
+    def __str__(self) -> str:
+        estado = "ACEPTADA" if self.ok else "RECHAZADA"
+        msg = f" - {self.mensaje}" if self.mensaje else ""
+        return f"Orden {estado} - Número: {self.numero_operacion}{msg}"
+
+    @property
+    def exito(self) -> bool:
+        """Alias para ok - indica si la operación fue exitosa"""
+        return self.ok
+
+
+# =============================================================================
+# MODELOS DE CHEQUES DE PAGO DIFERIDO (CPD)
+# =============================================================================
+
+@dataclass
+class PuedeOperarCPD:
+    """
+    Modelo para la respuesta de verificación de si el usuario puede operar CPD.
+    Indica si el usuario tiene habilitada la operatoria de cheques de pago diferido.
+    """
+    puede_operar: bool                     # Si puede operar CPD
+    mensaje: Optional[str] = None          # Mensaje informativo
+    motivo: Optional[str] = None           # Motivo si no puede operar
+    requiere_habilitacion: bool = False    # Si necesita solicitar habilitación
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'PuedeOperarCPD':
+        """Crea una instancia de PuedeOperarCPD desde un diccionario"""
+        puede = data.get('puedeOperar', data.get('habilitado', data.get('puede', False)))
+        return cls(
+            puede_operar=puede,
+            mensaje=data.get('mensaje', data.get('message')),
+            motivo=data.get('motivo', data.get('razon')),
+            requiere_habilitacion=data.get('requiereHabilitacion', not puede)
+        )
+
+    def __str__(self) -> str:
+        estado = "HABILITADO" if self.puede_operar else "NO HABILITADO"
+        msg = f" - {self.mensaje}" if self.mensaje else ""
+        return f"Operatoria CPD: {estado}{msg}"
+
+
+@dataclass
+class ChequeCPD:
+    """
+    Modelo para un Cheque de Pago Diferido disponible para operar.
+    Representa la información de un cheque en el mercado.
+    """
+    numero_cheque: str                     # Número único del cheque
+    librador: str                          # Nombre del librador
+    cuit_librador: Optional[str] = None    # CUIT del librador
+    fecha_pago: Optional[datetime] = None  # Fecha de pago del cheque
+    fecha_vencimiento: Optional[datetime] = None  # Fecha de vencimiento
+    importe: float = 0.0                   # Importe nominal del cheque
+    tasa: Optional[float] = None           # Tasa de descuento
+    valor_presente: Optional[float] = None # Valor presente del cheque
+    plazo: int = 0                         # Días hasta el vencimiento
+    segmento: Optional[str] = None         # Segmento (avalado, patrocinado, etc.)
+    estado: Optional[str] = None           # Estado del cheque
+    entidad_avaladora: Optional[str] = None  # Entidad que avala (si aplica)
+    calificacion: Optional[str] = None     # Calificación de riesgo
+    moneda: str = "ARS"                    # Moneda del cheque
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ChequeCPD':
+        """Crea una instancia de ChequeCPD desde un diccionario"""
+        # Parsear fecha de pago
+        fecha_pago = None
+        fecha_pago_str = data.get('fechaPago', data.get('fechaCobro'))
+        if fecha_pago_str:
+            try:
+                fecha_pago = datetime.fromisoformat(fecha_pago_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+        
+        # Parsear fecha de vencimiento
+        fecha_vencimiento = None
+        fecha_venc_str = data.get('fechaVencimiento')
+        if fecha_venc_str:
+            try:
+                fecha_vencimiento = datetime.fromisoformat(fecha_venc_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+
+        return cls(
+            numero_cheque=data.get('numeroCheque', data.get('numero', '')),
+            librador=data.get('librador', data.get('nombreLibrador', '')),
+            cuit_librador=data.get('cuitLibrador', data.get('cuit')),
+            fecha_pago=fecha_pago,
+            fecha_vencimiento=fecha_vencimiento,
+            importe=data.get('importe', data.get('monto', 0.0)),
+            tasa=data.get('tasa', data.get('tasaDescuento')),
+            valor_presente=data.get('valorPresente', data.get('precioCompra')),
+            plazo=data.get('plazo', data.get('diasAlVencimiento', 0)),
+            segmento=data.get('segmento'),
+            estado=data.get('estado'),
+            entidad_avaladora=data.get('entidadAvaladora', data.get('avalista')),
+            calificacion=data.get('calificacion'),
+            moneda=data.get('moneda', 'ARS')
+        )
+
+    def __str__(self) -> str:
+        fecha = self.fecha_pago.strftime('%d/%m/%Y') if self.fecha_pago else 'N/A'
+        tasa_str = f"{self.tasa:.2f}%" if self.tasa else "N/A"
+        return (
+            f"Cheque #{self.numero_cheque}\n"
+            f"Librador: {self.librador}\n"
+            f"Importe: ${self.importe:,.2f} | Valor presente: ${self.valor_presente or 0:,.2f}\n"
+            f"Tasa: {tasa_str} | Plazo: {self.plazo} días\n"
+            f"Fecha pago: {fecha} | Segmento: {self.segmento or 'N/A'}"
+        )
+
+    @property
+    def descuento(self) -> Optional[float]:
+        """Calcula el descuento aplicado al cheque"""
+        if self.importe and self.valor_presente:
+            return self.importe - self.valor_presente
+        return None
+
+    @property
+    def descuento_porcentual(self) -> Optional[float]:
+        """Calcula el descuento porcentual"""
+        if self.importe and self.valor_presente and self.importe > 0:
+            return ((self.importe - self.valor_presente) / self.importe) * 100
+        return None
+
+    @property
+    def es_avalado(self) -> bool:
+        """Retorna True si el cheque es avalado"""
+        if self.segmento:
+            return 'avalado' in self.segmento.lower()
+        return self.entidad_avaladora is not None
+
+
+@dataclass
+class ComisionesCPD:
+    """
+    Modelo para las comisiones de una operación con CPD.
+    Detalla los costos de operar con un cheque de pago diferido.
+    """
+    comision: float                        # Comisión del broker
+    iva_comision: float                    # IVA sobre la comisión
+    derechos_mercado: float               # Derechos de mercado
+    iva_derechos: float                   # IVA sobre derechos
+    arancel: Optional[float] = None       # Arancel adicional
+    otros_gastos: Optional[float] = None  # Otros gastos
+    total_gastos: float = 0.0             # Total de gastos
+    monto_neto: Optional[float] = None    # Monto neto después de gastos
+    importe: Optional[float] = None       # Importe original
+    plazo: Optional[int] = None           # Plazo de la operación
+    tasa: Optional[float] = None          # Tasa aplicada
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ComisionesCPD':
+        """Crea una instancia de ComisionesCPD desde un diccionario"""
+        comision = data.get('comision', data.get('comisiones', 0.0))
+        iva_comision = data.get('ivaComision', data.get('iva', 0.0))
+        derechos = data.get('derechosMercado', data.get('derechos', 0.0))
+        iva_derechos = data.get('ivaDerechos', data.get('ivaDerechosMercado', 0.0))
+        arancel = data.get('arancel')
+        otros = data.get('otrosGastos', data.get('otros'))
+        
+        # Calcular total si no viene
+        total = data.get('totalGastos', data.get('total'))
+        if total is None:
+            total = comision + iva_comision + derechos + iva_derechos
+            if arancel:
+                total += arancel
+            if otros:
+                total += otros
+
+        return cls(
+            comision=comision,
+            iva_comision=iva_comision,
+            derechos_mercado=derechos,
+            iva_derechos=iva_derechos,
+            arancel=arancel,
+            otros_gastos=otros,
+            total_gastos=total,
+            monto_neto=data.get('montoNeto'),
+            importe=data.get('importe'),
+            plazo=data.get('plazo'),
+            tasa=data.get('tasa')
+        )
+
+    def __str__(self) -> str:
+        return (
+            f"Comisiones CPD\n"
+            f"Comisión: ${self.comision:,.2f} (IVA: ${self.iva_comision:,.2f})\n"
+            f"Derechos: ${self.derechos_mercado:,.2f} (IVA: ${self.iva_derechos:,.2f})\n"
+            f"Total gastos: ${self.total_gastos:,.2f}"
+        )
+
+    @property
+    def costo_total(self) -> float:
+        """Alias para total_gastos"""
+        return self.total_gastos
+
+
+@dataclass
+class OrdenCPD:
+    """
+    Modelo para una orden de compra de Cheque de Pago Diferido.
+    Representa los datos necesarios para enviar una orden al mercado.
+    """
+    numero_cheque: str                     # Número del cheque a comprar
+    precio: float                          # Precio de compra (valor presente)
+    cantidad: int = 1                      # Cantidad de cheques (normalmente 1)
+
+    def to_dict(self) -> dict:
+        """Convierte la orden a un diccionario para enviar a la API"""
+        return {
+            "numeroCheque": self.numero_cheque,
+            "precio": self.precio,
+            "cantidad": self.cantidad
+        }
+
+    def __str__(self) -> str:
+        return f"Orden CPD: Cheque #{self.numero_cheque} @ ${self.precio:,.2f}"
+
+
+@dataclass
+class ResultadoCPD:
+    """
+    Modelo para el resultado de una operación con CPD.
+    Contiene la información devuelta tras comprar un cheque de pago diferido.
+    """
+    ok: bool                               # Si la operación fue exitosa
+    numero_operacion: Optional[int] = None # Número de operación asignado
+    mensaje: Optional[str] = None          # Mensaje de la API
+    numero_cheque: Optional[str] = None    # Número del cheque operado
+    importe: Optional[float] = None        # Importe del cheque
+    precio: Optional[float] = None         # Precio de compra
+    fecha_liquidacion: Optional[datetime] = None  # Fecha de liquidación
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ResultadoCPD':
+        """Crea una instancia de ResultadoCPD desde un diccionario"""
+        # Parsear fecha de liquidación
+        fecha_liquidacion = None
+        fecha_str = data.get('fechaLiquidacion')
+        if fecha_str:
+            try:
+                fecha_liquidacion = datetime.fromisoformat(fecha_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+
+        numero = data.get('numeroOperacion', data.get('numero', 0))
+        ok = data.get('ok', True) if 'ok' in data else (numero > 0)
+
+        return cls(
+            ok=ok,
+            numero_operacion=numero if numero > 0 else None,
+            mensaje=data.get('mensaje', data.get('message')),
+            numero_cheque=data.get('numeroCheque'),
+            importe=data.get('importe'),
+            precio=data.get('precio'),
+            fecha_liquidacion=fecha_liquidacion
+        )
+
+    def __str__(self) -> str:
+        estado = "EXITOSA" if self.ok else "FALLIDA"
+        num = f" (Op #{self.numero_operacion})" if self.numero_operacion else ""
+        cheque = f" - Cheque #{self.numero_cheque}" if self.numero_cheque else ""
+        msg = f" - {self.mensaje}" if self.mensaje else ""
+        return f"Operación CPD {estado}{num}{cheque}{msg}"
+
+    @property
+    def exito(self) -> bool:
+        """Alias para ok - indica si la operación fue exitosa"""
+        return self.ok
+
+
+
+@dataclass
+class OrdenEspecieD:
+    """
+    Modelo para una orden de compra/venta de Especie D (bonos en dólares).
+    Similar a OrdenOperacion pero específico para operaciones con bonos dolarizados.
+    """
+    mercado: str               # Mercado (ej: "bCBA")
+    simbolo: str               # Símbolo del bono (ej: "AL30D", "GD30D")
+    cantidad: int              # Cantidad de títulos a operar
+    precio: float              # Precio límite de la operación
+    plazo: str                 # Plazo de liquidación (ej: "t2")
+    validez: Optional[datetime] = None  # Fecha de validez de la orden
+
+    def to_dict(self) -> dict:
+        """Convierte la orden a un diccionario para enviar a la API"""
+        data = {
+            "mercado": self.mercado,
+            "simbolo": self.simbolo,
+            "cantidad": self.cantidad,
+            "precio": self.precio,
+            "plazo": self.plazo
+        }
+        if self.validez:
+            data["validez"] = self.validez.isoformat()
+        return data
+
+    def __str__(self) -> str:
+        validez_str = f" (válida hasta {self.validez.strftime('%Y-%m-%d')})" if self.validez else ""
+        return (
+            f"Orden Especie D: {self.simbolo} x {self.cantidad} @ USD {self.precio:,.2f}\n"
+            f"Mercado: {self.mercado} | Plazo: {self.plazo}{validez_str}"
+        )
+
+
+# =============================================================================
+# MODELOS DE FONDOS COMUNES DE INVERSIÓN (FCI)
+# =============================================================================
+
+@dataclass
+class TipoFondo:
+    """Modelo para un tipo de fondo de inversión"""
+    id: int
+    nombre: str
+    descripcion: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'TipoFondo':
+        """Crea una instancia de TipoFondo desde un diccionario"""
+        return cls(
+            id=data.get('id', 0),
+            nombre=data.get('nombre', data.get('tipoFondo', '')),
+            descripcion=data.get('descripcion')
+        )
+
+    def __str__(self) -> str:
+        return f"{self.nombre} (ID: {self.id})"
+
+
+@dataclass
+class AdministradoraFCI:
+    """Modelo para una administradora de Fondos Comunes de Inversión"""
+    id: int
+    nombre: str
+    descripcion: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'AdministradoraFCI':
+        """Crea una instancia de AdministradoraFCI desde un diccionario"""
+        return cls(
+            id=data.get('id', 0),
+            nombre=data.get('nombre', data.get('administradora', '')),
+            descripcion=data.get('descripcion')
+        )
+
+    def __str__(self) -> str:
+        return f"{self.nombre} (ID: {self.id})"
+
+
+@dataclass
+class FondoComunInversion:
+    """
+    Modelo para un Fondo Común de Inversión (FCI).
+    Representa la información básica de un FCI disponible para operar.
+    """
+    simbolo: str                           # Símbolo del FCI
+    nombre: str                            # Nombre completo del fondo
+    tipo_fondo: str                        # Tipo de fondo (ej: "Renta Fija", "Renta Variable")
+    administradora: str                    # Nombre de la administradora
+    moneda: str                            # Moneda del fondo
+    horizonte: Optional[str] = None        # Horizonte de inversión
+    valor_cuotaparte: Optional[float] = None  # Valor actual de la cuotaparte
+    variacion_diaria: Optional[float] = None  # Variación diaria en %
+    rescate_en_t: Optional[int] = None     # Días para rescate (T+n)
+    perfil_riesgo: Optional[str] = None    # Perfil de riesgo del fondo
+    disponible_suscripcion: bool = True    # Si permite suscripción
+    disponible_rescate: bool = True        # Si permite rescate
+    monto_minimo: Optional[float] = None   # Monto mínimo de suscripción
+    patrimonio: Optional[float] = None     # Patrimonio total del fondo
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'FondoComunInversion':
+        """Crea una instancia de FondoComunInversion desde un diccionario"""
+        return cls(
+            simbolo=data.get('simbolo', ''),
+            nombre=data.get('nombre', data.get('descripcion', '')),
+            tipo_fondo=data.get('tipoFondo', data.get('tipo', '')),
+            administradora=data.get('administradora', ''),
+            moneda=data.get('moneda', 'ARS'),
+            horizonte=data.get('horizonte', data.get('horizonteInversion')),
+            valor_cuotaparte=data.get('valorCuotaparte', data.get('ultimoPrecio')),
+            variacion_diaria=data.get('variacionDiaria', data.get('variacion')),
+            rescate_en_t=data.get('rescateEnT', data.get('diasRescate')),
+            perfil_riesgo=data.get('perfilRiesgo'),
+            disponible_suscripcion=data.get('disponibleSuscripcion', True),
+            disponible_rescate=data.get('disponibleRescate', True),
+            monto_minimo=data.get('montoMinimo'),
+            patrimonio=data.get('patrimonio')
+        )
+
+    def __str__(self) -> str:
+        valor = f"${self.valor_cuotaparte:,.4f}" if self.valor_cuotaparte else "N/A"
+        variacion = f"{self.variacion_diaria:+.2f}%" if self.variacion_diaria else "N/A"
+        return (
+            f"{self.simbolo} - {self.nombre}\n"
+            f"Tipo: {self.tipo_fondo} | Administradora: {self.administradora}\n"
+            f"Valor cuotaparte: {valor} | Variación: {variacion}\n"
+            f"Moneda: {self.moneda} | Rescate: T+{self.rescate_en_t or '?'}"
+        )
+
+    @property
+    def es_renta_fija(self) -> bool:
+        """Retorna True si es un fondo de renta fija"""
+        return 'fija' in self.tipo_fondo.lower()
+
+    @property
+    def es_renta_variable(self) -> bool:
+        """Retorna True si es un fondo de renta variable"""
+        return 'variable' in self.tipo_fondo.lower()
+
+    @property
+    def es_money_market(self) -> bool:
+        """Retorna True si es un fondo money market"""
+        return 'money' in self.tipo_fondo.lower() or 'mercado' in self.tipo_fondo.lower()
+
+
+@dataclass
+class FCIDetalle(FondoComunInversion):
+    """
+    Modelo para el detalle completo de un FCI.
+    Extiende FondoComunInversion con información adicional.
+    """
+    fecha_cotizacion: Optional[datetime] = None  # Fecha de la última cotización
+    rendimiento_mes: Optional[float] = None      # Rendimiento del mes en %
+    rendimiento_anio: Optional[float] = None     # Rendimiento del año en %
+    rendimiento_12m: Optional[float] = None      # Rendimiento últimos 12 meses en %
+    duracion: Optional[float] = None             # Duración (para renta fija)
+    tir: Optional[float] = None                  # TIR estimada
+    gastos_administracion: Optional[float] = None  # Gastos de administración en %
+    reglamento_url: Optional[str] = None         # URL del reglamento
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'FCIDetalle':
+        """Crea una instancia de FCIDetalle desde un diccionario"""
+        # Parsear fecha de cotización
+        fecha_cotizacion = None
+        fecha_str = data.get('fechaCotizacion', data.get('fecha'))
+        if fecha_str:
+            try:
+                fecha_cotizacion = datetime.fromisoformat(fecha_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+
+        return cls(
+            simbolo=data.get('simbolo', ''),
+            nombre=data.get('nombre', data.get('descripcion', '')),
+            tipo_fondo=data.get('tipoFondo', data.get('tipo', '')),
+            administradora=data.get('administradora', ''),
+            moneda=data.get('moneda', 'ARS'),
+            horizonte=data.get('horizonte', data.get('horizonteInversion')),
+            valor_cuotaparte=data.get('valorCuotaparte', data.get('ultimoPrecio')),
+            variacion_diaria=data.get('variacionDiaria', data.get('variacion')),
+            rescate_en_t=data.get('rescateEnT', data.get('diasRescate')),
+            perfil_riesgo=data.get('perfilRiesgo'),
+            disponible_suscripcion=data.get('disponibleSuscripcion', True),
+            disponible_rescate=data.get('disponibleRescate', True),
+            monto_minimo=data.get('montoMinimo'),
+            patrimonio=data.get('patrimonio'),
+            fecha_cotizacion=fecha_cotizacion,
+            rendimiento_mes=data.get('rendimientoMes'),
+            rendimiento_anio=data.get('rendimientoAnio', data.get('rendimientoAño')),
+            rendimiento_12m=data.get('rendimiento12m', data.get('rendimiento12Meses')),
+            duracion=data.get('duracion'),
+            tir=data.get('tir'),
+            gastos_administracion=data.get('gastosAdministracion'),
+            reglamento_url=data.get('reglamentoUrl')
+        )
+
+    def __str__(self) -> str:
+        base = super().__str__()
+        rend_mes = f"{self.rendimiento_mes:+.2f}%" if self.rendimiento_mes else "N/A"
+        rend_anio = f"{self.rendimiento_anio:+.2f}%" if self.rendimiento_anio else "N/A"
+        return (
+            f"{base}\n"
+            f"Rendimiento: Mes {rend_mes} | Año {rend_anio}"
+        )
+
+
+@dataclass
+class OrdenFCI:
+    """
+    Modelo para una orden de suscripción o rescate de FCI.
+    Representa los datos necesarios para operar con un fondo.
+    """
+    simbolo: str               # Símbolo del FCI
+    monto: Optional[float] = None      # Monto a suscribir (para suscripción)
+    cantidad: Optional[float] = None   # Cantidad de cuotapartes (para rescate)
+    solo_validar: bool = False         # Si es True, solo valida sin ejecutar
+
+    def to_dict(self) -> dict:
+        """Convierte la orden a un diccionario para enviar a la API"""
+        data = {"simbolo": self.simbolo}
+        
+        if self.monto is not None:
+            data["monto"] = self.monto
+        if self.cantidad is not None:
+            data["cantidad"] = self.cantidad
+        if self.solo_validar:
+            data["soloValidar"] = self.solo_validar
+            
+        return data
+
+    def __str__(self) -> str:
+        if self.monto:
+            return f"Orden FCI: Suscribir ${self.monto:,.2f} en {self.simbolo}"
+        elif self.cantidad:
+            return f"Orden FCI: Rescatar {self.cantidad:,.4f} cuotapartes de {self.simbolo}"
+        return f"Orden FCI: {self.simbolo}"
+
+
+@dataclass
+class ResultadoFCI:
+    """
+    Modelo para el resultado de una operación con FCI.
+    Contiene la información devuelta por la API tras suscribir o rescatar.
+    """
+    ok: bool                             # Si la operación fue exitosa
+    numero_operacion: Optional[int] = None  # Número de operación asignado
+    mensaje: Optional[str] = None           # Mensaje de la API
+    cuotapartes_estimadas: Optional[float] = None  # Cuotapartes estimadas (suscripción)
+    monto_estimado: Optional[float] = None  # Monto estimado (rescate)
+    fecha_liquidacion: Optional[datetime] = None  # Fecha estimada de liquidación
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ResultadoFCI':
+        """Crea una instancia de ResultadoFCI desde un diccionario"""
+        # Parsear fecha de liquidación
+        fecha_liquidacion = None
+        fecha_str = data.get('fechaLiquidacion')
+        if fecha_str:
+            try:
+                fecha_liquidacion = datetime.fromisoformat(fecha_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+
+        numero = data.get('numeroOperacion', data.get('numero', 0))
+        ok = data.get('ok', True) if 'ok' in data else (numero > 0)
+
+        return cls(
+            ok=ok,
+            numero_operacion=numero if numero > 0 else None,
+            mensaje=data.get('mensaje', data.get('message')),
+            cuotapartes_estimadas=data.get('cuotapartesEstimadas'),
+            monto_estimado=data.get('montoEstimado'),
+            fecha_liquidacion=fecha_liquidacion
+        )
+
+    def __str__(self) -> str:
+        estado = "EXITOSA" if self.ok else "FALLIDA"
+        num = f" (Op #{self.numero_operacion})" if self.numero_operacion else ""
+        msg = f" - {self.mensaje}" if self.mensaje else ""
+        return f"Operación FCI {estado}{num}{msg}"
+
+    @property
+    def exito(self) -> bool:
+        """Alias para ok - indica si la operación fue exitosa"""
+        return self.ok
+
+
+# =============================================================================
+# MODELOS DE DÓLAR MEP SIMPLIFICADO
+# =============================================================================
+
+@dataclass
+class EstimacionMEP:
+    """
+    Modelo para la estimación de una operación de dólar MEP.
+    Contiene los montos estimados para compra o venta de dólar MEP.
+    """
+    monto_pesos: float                    # Monto en pesos a debitar/acreditar
+    monto_dolares: float                  # Monto en dólares a acreditar/debitar
+    tipo_cambio: float                    # Tipo de cambio MEP estimado
+    comision: Optional[float] = None      # Comisión estimada
+    impuestos: Optional[float] = None     # Impuestos estimados
+    costo_total: Optional[float] = None   # Costo total de la operación
+    titulo_utilizado: Optional[str] = None  # Bono usado para la operación (ej: AL30)
+    cantidad_titulos: Optional[int] = None  # Cantidad de títulos a operar
+    precio_compra: Optional[float] = None   # Precio de compra del bono
+    precio_venta: Optional[float] = None    # Precio de venta del bono
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'EstimacionMEP':
+        """Crea una instancia de EstimacionMEP desde un diccionario"""
+        return cls(
+            monto_pesos=data.get('montoPesos', data.get('montoEnPesos', 0.0)),
+            monto_dolares=data.get('montoDolares', data.get('montoEnDolares', 0.0)),
+            tipo_cambio=data.get('tipoCambio', data.get('cotizacionMep', 0.0)),
+            comision=data.get('comision', data.get('comisiones')),
+            impuestos=data.get('impuestos'),
+            costo_total=data.get('costoTotal', data.get('total')),
+            titulo_utilizado=data.get('tituloUtilizado', data.get('simbolo')),
+            cantidad_titulos=data.get('cantidadTitulos', data.get('cantidad')),
+            precio_compra=data.get('precioCompra'),
+            precio_venta=data.get('precioVenta')
+        )
+
+    def __str__(self) -> str:
+        return (
+            f"Estimación MEP\n"
+            f"Pesos: ${self.monto_pesos:,.2f} | Dólares: USD {self.monto_dolares:,.2f}\n"
+            f"Tipo de cambio: ${self.tipo_cambio:,.2f}\n"
+            f"Título: {self.titulo_utilizado or 'N/A'}"
+        )
+
+    @property
+    def tipo_cambio_efectivo(self) -> float:
+        """Calcula el tipo de cambio efectivo incluyendo costos"""
+        if self.monto_dolares and self.monto_dolares > 0:
+            return self.monto_pesos / self.monto_dolares
+        return self.tipo_cambio
+
+
+@dataclass
+class ParametrosMEP:
+    """
+    Modelo para los parámetros de operatoria MEP simplificada.
+    Contiene la configuración y límites para operar dólar MEP.
+    """
+    id_tipo_operatoria: int               # ID del tipo de operatoria
+    nombre: str                           # Nombre de la operatoria
+    descripcion: Optional[str] = None     # Descripción
+    monto_minimo: Optional[float] = None  # Monto mínimo en pesos
+    monto_maximo: Optional[float] = None  # Monto máximo en pesos
+    horario_inicio: Optional[str] = None  # Hora de inicio de operaciones
+    horario_fin: Optional[str] = None     # Hora de fin de operaciones
+    disponible: bool = True               # Si está disponible para operar
+    titulo_default: Optional[str] = None  # Título por defecto (ej: AL30)
+    plazo: Optional[str] = None           # Plazo de liquidación
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ParametrosMEP':
+        """Crea una instancia de ParametrosMEP desde un diccionario"""
+        return cls(
+            id_tipo_operatoria=data.get('idTipoOperatoria', data.get('id', 0)),
+            nombre=data.get('nombre', ''),
+            descripcion=data.get('descripcion'),
+            monto_minimo=data.get('montoMinimo'),
+            monto_maximo=data.get('montoMaximo'),
+            horario_inicio=data.get('horarioInicio', data.get('horaInicio')),
+            horario_fin=data.get('horarioFin', data.get('horaFin')),
+            disponible=data.get('disponible', data.get('habilitado', True)),
+            titulo_default=data.get('tituloDefault', data.get('simbolo')),
+            plazo=data.get('plazo')
+        )
+
+    def __str__(self) -> str:
+        estado = "Disponible" if self.disponible else "No disponible"
+        horario = ""
+        if self.horario_inicio and self.horario_fin:
+            horario = f" ({self.horario_inicio} - {self.horario_fin})"
+        return (
+            f"{self.nombre} (ID: {self.id_tipo_operatoria})\n"
+            f"Estado: {estado}{horario}\n"
+            f"Monto: ${self.monto_minimo or 0:,.0f} - ${self.monto_maximo or 0:,.0f}"
+        )
+
+
+@dataclass
+class ValidacionMEP:
+    """
+    Modelo para el resultado de validación de una operación MEP.
+    Indica si la operación puede ejecutarse y cualquier mensaje de error.
+    """
+    valido: bool                          # Si la operación es válida
+    mensaje: Optional[str] = None         # Mensaje de validación
+    monto_ajustado: Optional[float] = None  # Monto ajustado si hubo corrección
+    error_codigo: Optional[str] = None    # Código de error si no es válida
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ValidacionMEP':
+        """Crea una instancia de ValidacionMEP desde un diccionario"""
+        valido = data.get('valido', data.get('ok', data.get('esValido', True)))
+        return cls(
+            valido=valido,
+            mensaje=data.get('mensaje', data.get('message')),
+            monto_ajustado=data.get('montoAjustado'),
+            error_codigo=data.get('errorCodigo', data.get('codigoError'))
+        )
+
+    def __str__(self) -> str:
+        estado = "VÁLIDA" if self.valido else "INVÁLIDA"
+        msg = f" - {self.mensaje}" if self.mensaje else ""
+        return f"Validación MEP: {estado}{msg}"
+
+    @property
+    def es_valida(self) -> bool:
+        """Alias para valido"""
+        return self.valido
+
+
+@dataclass
+class ResultadoMEP:
+    """
+    Modelo para el resultado de una operación de dólar MEP simplificado.
+    Contiene la información devuelta tras ejecutar la compra/venta de MEP.
+    """
+    ok: bool                              # Si la operación fue exitosa
+    numero_operacion: Optional[int] = None  # Número de operación principal
+    numero_operacion_compra: Optional[int] = None  # Número de operación de compra
+    numero_operacion_venta: Optional[int] = None   # Número de operación de venta
+    mensaje: Optional[str] = None         # Mensaje de la API
+    monto_pesos: Optional[float] = None   # Monto en pesos operado
+    monto_dolares: Optional[float] = None # Monto en dólares operado
+    tipo_cambio: Optional[float] = None   # Tipo de cambio obtenido
+    fecha_liquidacion: Optional[datetime] = None  # Fecha estimada de liquidación
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ResultadoMEP':
+        """Crea una instancia de ResultadoMEP desde un diccionario"""
+        # Parsear fecha de liquidación
+        fecha_liquidacion = None
+        fecha_str = data.get('fechaLiquidacion')
+        if fecha_str:
+            try:
+                fecha_liquidacion = datetime.fromisoformat(fecha_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+
+        numero = data.get('numeroOperacion', data.get('numero', 0))
+        ok = data.get('ok', True) if 'ok' in data else (numero > 0)
+
+        return cls(
+            ok=ok,
+            numero_operacion=numero if numero > 0 else None,
+            numero_operacion_compra=data.get('numeroOperacionCompra'),
+            numero_operacion_venta=data.get('numeroOperacionVenta'),
+            mensaje=data.get('mensaje', data.get('message')),
+            monto_pesos=data.get('montoPesos', data.get('montoEnPesos')),
+            monto_dolares=data.get('montoDolares', data.get('montoEnDolares')),
+            tipo_cambio=data.get('tipoCambio', data.get('cotizacionMep')),
+            fecha_liquidacion=fecha_liquidacion
+        )
+
+    def __str__(self) -> str:
+        estado = "EXITOSA" if self.ok else "FALLIDA"
+        ops = []
+        if self.numero_operacion:
+            ops.append(f"Op #{self.numero_operacion}")
+        if self.numero_operacion_compra:
+            ops.append(f"Compra #{self.numero_operacion_compra}")
+        if self.numero_operacion_venta:
+            ops.append(f"Venta #{self.numero_operacion_venta}")
+        ops_str = f" ({', '.join(ops)})" if ops else ""
+        msg = f" - {self.mensaje}" if self.mensaje else ""
+        return f"Operación MEP {estado}{ops_str}{msg}"
+
+    @property
+    def exito(self) -> bool:
+        """Alias para ok - indica si la operación fue exitosa"""
+        return self.ok
+
+
+# =============================================================================
+# MODELOS DE ASESORES
+# =============================================================================
+
+@dataclass
+class MovimientoCliente:
+    """
+    Modelo para un movimiento de cliente en la cuenta de un asesorado.
+    Representa operaciones históricas de un cliente del asesor.
+    """
+    fecha: Optional[datetime] = None           # Fecha del movimiento
+    tipo_movimiento: str = ""                  # Tipo de movimiento
+    descripcion: str = ""                      # Descripción del movimiento
+    simbolo: Optional[str] = None              # Símbolo del título (si aplica)
+    cantidad: Optional[int] = None             # Cantidad de títulos
+    precio: Optional[float] = None             # Precio unitario
+    monto: float = 0.0                         # Monto total del movimiento
+    moneda: str = "ARS"                        # Moneda del movimiento
+    saldo: Optional[float] = None              # Saldo después del movimiento
+    numero_operacion: Optional[int] = None     # Número de operación (si aplica)
+    id_cliente: Optional[str] = None           # ID del cliente asesorado
+    nombre_cliente: Optional[str] = None       # Nombre del cliente
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'MovimientoCliente':
+        """Crea una instancia de MovimientoCliente desde un diccionario"""
+        # Parsear fecha
+        fecha = None
+        fecha_str = data.get('fecha', data.get('fechaMovimiento'))
+        if fecha_str:
+            try:
+                fecha = datetime.fromisoformat(fecha_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+
+        return cls(
+            fecha=fecha,
+            tipo_movimiento=data.get('tipoMovimiento', data.get('tipo', '')),
+            descripcion=data.get('descripcion', ''),
+            simbolo=data.get('simbolo'),
+            cantidad=data.get('cantidad'),
+            precio=data.get('precio'),
+            monto=data.get('monto', data.get('importe', 0.0)),
+            moneda=data.get('moneda', 'ARS'),
+            saldo=data.get('saldo', data.get('saldoFinal')),
+            numero_operacion=data.get('numeroOperacion', data.get('numero')),
+            id_cliente=data.get('idCliente', data.get('idClienteAsesorado')),
+            nombre_cliente=data.get('nombreCliente', data.get('cliente'))
+        )
+
+    def __str__(self) -> str:
+        fecha_str = self.fecha.strftime('%d/%m/%Y') if self.fecha else 'N/A'
+        simbolo = f" - {self.simbolo}" if self.simbolo else ""
+        return (
+            f"{fecha_str}: {self.tipo_movimiento}{simbolo}\n"
+            f"Monto: ${self.monto:,.2f} {self.moneda}\n"
+            f"{self.descripcion}"
+        )
+
+
+@dataclass
+class MovimientosAsesor:
+    """
+    Modelo para la respuesta de movimientos históricos de clientes del asesor.
+    Contiene una lista de movimientos con información de paginación.
+    """
+    movimientos: List[MovimientoCliente]
+    total_registros: int = 0
+    pagina_actual: int = 1
+    registros_por_pagina: int = 50
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'MovimientosAsesor':
+        """Crea una instancia de MovimientosAsesor desde un diccionario"""
+        movimientos_data = data.get('movimientos', data.get('items', []))
+        if isinstance(data, list):
+            movimientos_data = data
+        
+        movimientos = [MovimientoCliente.from_dict(m) for m in movimientos_data]
+        
+        return cls(
+            movimientos=movimientos,
+            total_registros=data.get('totalRegistros', data.get('total', len(movimientos))),
+            pagina_actual=data.get('paginaActual', data.get('pagina', 1)),
+            registros_por_pagina=data.get('registrosPorPagina', data.get('porPagina', 50))
+        )
+
+    def __str__(self) -> str:
+        return f"Movimientos Asesor: {len(self.movimientos)} de {self.total_registros} registros"
+
+
+@dataclass
+class OpcionRespuesta:
+    """Modelo para una opción de respuesta en una pregunta del test de inversor"""
+    id: int
+    texto: str
+    valor: Optional[int] = None  # Valor/puntaje de la opción
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'OpcionRespuesta':
+        """Crea una instancia de OpcionRespuesta desde un diccionario"""
+        return cls(
+            id=data.get('id', 0),
+            texto=data.get('texto', data.get('descripcion', '')),
+            valor=data.get('valor', data.get('puntaje'))
+        )
+
+    def __str__(self) -> str:
+        return f"  [{self.id}] {self.texto}"
+
+
+@dataclass
+class PreguntaTestInversor:
+    """
+    Modelo para una pregunta del test de perfil de inversor.
+    Contiene la pregunta y sus opciones de respuesta.
+    """
+    id: int
+    numero: int
+    texto: str
+    categoria: Optional[str] = None
+    opciones: Optional[List[OpcionRespuesta]] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'PreguntaTestInversor':
+        """Crea una instancia de PreguntaTestInversor desde un diccionario"""
+        opciones_data = data.get('opciones', data.get('respuestas', []))
+        opciones = [OpcionRespuesta.from_dict(o) for o in opciones_data] if opciones_data else None
+        
+        return cls(
+            id=data.get('id', 0),
+            numero=data.get('numero', data.get('orden', 0)),
+            texto=data.get('texto', data.get('pregunta', '')),
+            categoria=data.get('categoria', data.get('seccion')),
+            opciones=opciones
+        )
+
+    def __str__(self) -> str:
+        opciones_str = ""
+        if self.opciones:
+            opciones_str = "\n" + "\n".join(str(o) for o in self.opciones)
+        return f"Pregunta {self.numero}: {self.texto}{opciones_str}"
+
+
+@dataclass
+class TestInversor:
+    """
+    Modelo para el test completo de perfil de inversor.
+    Contiene todas las preguntas necesarias para calcular el perfil.
+    """
+    preguntas: List[PreguntaTestInversor]
+    titulo: Optional[str] = None
+    descripcion: Optional[str] = None
+    cantidad_preguntas: int = 0
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'TestInversor':
+        """Crea una instancia de TestInversor desde un diccionario"""
+        preguntas_data = data.get('preguntas', data.get('items', []))
+        if isinstance(data, list):
+            preguntas_data = data
+        
+        preguntas = [PreguntaTestInversor.from_dict(p) for p in preguntas_data]
+        
+        return cls(
+            preguntas=preguntas,
+            titulo=data.get('titulo'),
+            descripcion=data.get('descripcion'),
+            cantidad_preguntas=data.get('cantidadPreguntas', len(preguntas))
+        )
+
+    def __str__(self) -> str:
+        titulo = self.titulo or "Test de Perfil de Inversor"
+        return f"{titulo}: {len(self.preguntas)} preguntas"
+
+    def get_pregunta(self, numero: int) -> Optional[PreguntaTestInversor]:
+        """Busca una pregunta por su número"""
+        for pregunta in self.preguntas:
+            if pregunta.numero == numero:
+                return pregunta
+        return None
+
+
+@dataclass
+class RespuestaTest:
+    """
+    Modelo para una respuesta al test de inversor.
+    Representa la respuesta seleccionada para una pregunta.
+    """
+    id_pregunta: int
+    id_respuesta: int
+
+    def to_dict(self) -> dict:
+        """Convierte la respuesta a un diccionario para enviar a la API"""
+        return {
+            "idPregunta": self.id_pregunta,
+            "idRespuesta": self.id_respuesta
+        }
+
+
+@dataclass
+class PerfilInversor:
+    """
+    Modelo para el resultado del cálculo del perfil de inversor.
+    Contiene el perfil calculado basado en las respuestas al test.
+    """
+    perfil: str                                # Perfil calculado (ej: "Conservador", "Moderado", "Agresivo")
+    descripcion: Optional[str] = None          # Descripción del perfil
+    puntaje: Optional[int] = None              # Puntaje obtenido
+    puntaje_maximo: Optional[int] = None       # Puntaje máximo posible
+    recomendaciones: Optional[List[str]] = None  # Lista de recomendaciones
+    guardado: bool = False                     # Si el perfil fue guardado
+    id_cliente: Optional[str] = None           # ID del cliente (si se guardó)
+    fecha_calculo: Optional[datetime] = None   # Fecha del cálculo
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'PerfilInversor':
+        """Crea una instancia de PerfilInversor desde un diccionario"""
+        # Parsear fecha
+        fecha_calculo = None
+        fecha_str = data.get('fechaCalculo', data.get('fecha'))
+        if fecha_str:
+            try:
+                fecha_calculo = datetime.fromisoformat(fecha_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+
+        recomendaciones = data.get('recomendaciones', [])
+        if isinstance(recomendaciones, str):
+            recomendaciones = [recomendaciones]
+
+        return cls(
+            perfil=data.get('perfil', data.get('perfilInversor', '')),
+            descripcion=data.get('descripcion', data.get('descripcionPerfil')),
+            puntaje=data.get('puntaje', data.get('puntos')),
+            puntaje_maximo=data.get('puntajeMaximo', data.get('puntosMaximos')),
+            recomendaciones=recomendaciones if recomendaciones else None,
+            guardado=data.get('guardado', False),
+            id_cliente=data.get('idCliente', data.get('idClienteAsesorado')),
+            fecha_calculo=fecha_calculo
+        )
+
+    def __str__(self) -> str:
+        puntaje_str = f" ({self.puntaje}/{self.puntaje_maximo})" if self.puntaje else ""
+        guardado_str = " [GUARDADO]" if self.guardado else ""
+        return f"Perfil: {self.perfil}{puntaje_str}{guardado_str}"
+
+    @property
+    def es_conservador(self) -> bool:
+        """Retorna True si el perfil es conservador"""
+        return 'conservador' in self.perfil.lower()
+
+    @property
+    def es_moderado(self) -> bool:
+        """Retorna True si el perfil es moderado"""
+        return 'moderado' in self.perfil.lower()
+
+    @property
+    def es_agresivo(self) -> bool:
+        """Retorna True si el perfil es agresivo"""
+        return 'agresivo' in self.perfil.lower() or 'arriesgado' in self.perfil.lower()
+
+
+@dataclass
+class ResultadoOperacionAsesor:
+    """
+    Modelo para el resultado de una operación ejecutada como asesor.
+    Similar a ResultadoOrden pero específico para operaciones de asesores.
+    """
+    ok: bool                                   # Si la operación fue exitosa
+    numero_operacion: Optional[int] = None     # Número de operación asignado
+    mensaje: Optional[str] = None              # Mensaje de la API
+    id_cliente: Optional[str] = None           # ID del cliente asesorado
+    simbolo: Optional[str] = None              # Símbolo operado
+    cantidad: Optional[int] = None             # Cantidad operada
+    precio: Optional[float] = None             # Precio de la operación
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ResultadoOperacionAsesor':
+        """Crea una instancia de ResultadoOperacionAsesor desde un diccionario"""
+        numero = data.get('numeroOperacion', data.get('numero', 0))
+        ok = data.get('ok', True) if 'ok' in data else (numero > 0)
+        
+        return cls(
+            ok=ok,
+            numero_operacion=numero if numero > 0 else None,
+            mensaje=data.get('mensaje', data.get('message')),
+            id_cliente=data.get('idCliente', data.get('idClienteAsesorado')),
+            simbolo=data.get('simbolo'),
+            cantidad=data.get('cantidad'),
+            precio=data.get('precio')
+        )
+
+    def __str__(self) -> str:
+        estado = "EXITOSA" if self.ok else "FALLIDA"
+        num = f" (Op #{self.numero_operacion})" if self.numero_operacion else ""
+        cliente = f" - Cliente {self.id_cliente}" if self.id_cliente else ""
+        msg = f" - {self.mensaje}" if self.mensaje else ""
+        return f"Operación Asesor {estado}{num}{cliente}{msg}"
+
+    @property
+    def exito(self) -> bool:
+        """Alias para ok - indica si la operación fue exitosa"""
+        return self.ok
