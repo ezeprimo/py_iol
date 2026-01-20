@@ -6,8 +6,73 @@ on:
       - "v*"
 
 jobs:
+  validate:
+    name: Validate version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      is_prerelease: ${{ steps.check_prerelease.outputs.is_prerelease }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          # Extract version from tag (remove 'v' prefix)
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "Tag version: $TAG_VERSION"
+          echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get version from pyproject.toml
+        id: get_pyproject_version
+        run: |
+          # Extract version from pyproject.toml
+          PYPROJECT_VERSION=$(python -c "
+          import re
+          with open('pyproject.toml', 'r') as f:
+              content = f.read()
+          match = re.search(r'version\s*=\s*[\"']([^\"']+)[\"']', content)
+          print(match.group(1) if match else '')
+          ")
+          echo "pyproject.toml version: $PYPROJECT_VERSION"
+          echo "pyproject_version=$PYPROJECT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Validate version match
+        run: |
+          TAG_VERSION="${{ steps.get_version.outputs.version }}"
+          PYPROJECT_VERSION="${{ steps.get_pyproject_version.outputs.pyproject_version }}"
+          
+          if [ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]; then
+            echo "::error::Version mismatch! Tag version ($TAG_VERSION) does not match pyproject.toml version ($PYPROJECT_VERSION)"
+            echo ""
+            echo "Please ensure the version in pyproject.toml matches your tag."
+            echo "Example: If you want to release v0.2.0, update pyproject.toml to version = \"0.2.0\""
+            exit 1
+          fi
+          
+          echo "Version validation passed: $TAG_VERSION"
+
+      - name: Check if prerelease
+        id: check_prerelease
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          
+          # Check if version contains prerelease identifiers
+          # Matches: alpha, beta, rc, dev followed by optional .N
+          # Examples: 0.1.0-beta.1, 0.2.0-alpha, 1.0.0-rc.2, 0.1.0-dev.1
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc|dev)(\.[0-9]+)?$ ]]; then
+            echo "Detected PRERELEASE version: $VERSION"
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "Detected PRODUCTION version: $VERSION"
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
   build:
     name: Build distribution
+    needs: validate
     runs-on: ubuntu-latest
 
     steps:
@@ -40,7 +105,7 @@ jobs:
 
   publish-testpypi:
     name: Publish to TestPyPI
-    needs: build
+    needs: [validate, build]
     runs-on: ubuntu-latest
     environment:
       name: testpypi
@@ -61,9 +126,20 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
 
+      - name: Summary
+        run: |
+          echo "## Published to TestPyPI" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Version: ${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "Prerelease: ${{ needs.validate.outputs.is_prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[View on TestPyPI](https://test.pypi.org/project/pyiol/${{ needs.validate.outputs.version }}/)" >> $GITHUB_STEP_SUMMARY
+
   publish-pypi:
     name: Publish to PyPI
-    needs: publish-testpypi
+    needs: [validate, build, publish-testpypi]
+    # Only run for production releases (not prereleases)
+    if: needs.validate.outputs.is_prerelease == 'false'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -80,3 +156,29 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Summary
+        run: |
+          echo "## Published to PyPI (Production)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Version: ${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[View on PyPI](https://pypi.org/project/pyiol/${{ needs.validate.outputs.version }}/)" >> $GITHUB_STEP_SUMMARY
+
+  skip-pypi-notice:
+    name: Skip PyPI (Prerelease)
+    needs: [validate, publish-testpypi]
+    # Only run for prereleases to show a notice
+    if: needs.validate.outputs.is_prerelease == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notice
+        run: |
+          echo "::notice::Prerelease version ${{ needs.validate.outputs.version }} was published to TestPyPI only."
+          echo ""
+          echo "## Prerelease Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Version **${{ needs.validate.outputs.version }}** is a prerelease and was published to TestPyPI only." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To publish to production PyPI, create a stable release tag (e.g., v1.0.0 instead of v1.0.0-beta.1)" >> $GITHUB_STEP_SUMMARY

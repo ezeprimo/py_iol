@@ -254,7 +254,14 @@ OperationStates.CANCELLED  # Canceladas
 
 ## Contribuir
 
-Las contribuciones son bienvenidas. Por favor:
+Las contribuciones son bienvenidas. Consulta la [Guia de Contribucion](./CONTRIBUTING.md) para detalles sobre:
+
+- Configuracion del entorno de desarrollo
+- Sistema de versionado semantico
+- Proceso de publicacion a PyPI
+- Estandares de codigo
+
+**Resumen rapido:**
 
 1. Fork el repositorio
 2. Crea una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)

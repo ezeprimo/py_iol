@@ -1,0 +1,87 @@
+#!/bin/bash
+#
+# Git pre-push hook para validar tags antes de push
+#
+# Este hook valida que:
+# 1. El tag tenga formato semántico válido (vX.Y.Z o vX.Y.Z-prerelease)
+# 2. La versión del tag coincida con pyproject.toml
+#
+# Instalación:
+#   cp scripts/pre-push .git/hooks/pre-push
+#   chmod +x .git/hooks/pre-push
+#
+# O en Windows (Git Bash):
+#   cp scripts/pre-push .git/hooks/pre-push
+
+# Colores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Leer refs que se están pusheando
+while read local_ref local_sha remote_ref remote_sha
+do
+    # Solo validar si es un tag
+    if [[ "$local_ref" == refs/tags/v* ]]; then
+        tag_name="${local_ref#refs/tags/}"
+        tag_version="${tag_name#v}"
+        
+        echo -e "${YELLOW}Validando tag: $tag_name${NC}"
+        
+        # Obtener versión de pyproject.toml
+        pyproject_version=$(python -c "
+import re
+with open('pyproject.toml', 'r') as f:
+    content = f.read()
+match = re.search(r'version\s*=\s*[\"']([^\"']+)[\"']', content)
+print(match.group(1) if match else '')
+" 2>/dev/null)
+        
+        if [ -z "$pyproject_version" ]; then
+            echo -e "${RED}Error: No se pudo leer la versión de pyproject.toml${NC}"
+            exit 1
+        fi
+        
+        # Validar formato del tag (semantic versioning)
+        if [[ ! "$tag_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc|dev)(\.[0-9]+)?)?$ ]]; then
+            echo -e "${RED}Error: El tag '$tag_name' no tiene formato semántico válido${NC}"
+            echo ""
+            echo "Formatos válidos:"
+            echo "  - v0.1.0          (producción)"
+            echo "  - v0.1.0-beta.1   (prerelease beta)"
+            echo "  - v0.1.0-alpha    (prerelease alpha)"
+            echo "  - v0.1.0-rc.2     (release candidate)"
+            echo "  - v0.1.0-dev.1    (development)"
+            exit 1
+        fi
+        
+        # Validar que las versiones coincidan
+        if [ "$tag_version" != "$pyproject_version" ]; then
+            echo -e "${RED}Error: Las versiones no coinciden!${NC}"
+            echo ""
+            echo "  Tag:            $tag_version"
+            echo "  pyproject.toml: $pyproject_version"
+            echo ""
+            echo "Por favor, actualiza pyproject.toml antes de crear el tag:"
+            echo "  1. Edita pyproject.toml y cambia version = \"$tag_version\""
+            echo "  2. Commit los cambios"
+            echo "  3. Elimina el tag local: git tag -d $tag_name"
+            echo "  4. Crea el tag de nuevo: git tag $tag_name"
+            echo "  5. Push: git push origin $tag_name"
+            exit 1
+        fi
+        
+        # Mostrar información del release
+        if [[ "$tag_version" =~ -(alpha|beta|rc|dev) ]]; then
+            echo -e "${GREEN}✓ Tag válido: $tag_name (PRERELEASE)${NC}"
+            echo "  → Se publicará solo en TestPyPI"
+        else
+            echo -e "${GREEN}✓ Tag válido: $tag_name (PRODUCCIÓN)${NC}"
+            echo "  → Se publicará en TestPyPI y PyPI"
+        fi
+        echo ""
+    fi
+done
+
+exit 0
