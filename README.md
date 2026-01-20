@@ -175,13 +175,30 @@ py_iol/
 │   ├── client.py           # Cliente HTTP para la API
 │   ├── models.py           # Dataclasses para respuestas
 │   └── constants.py        # URLs, mercados, plazos
-├── xdoc/                   # Documentacion y ejemplos
-│   ├── notebooks/          # Jupyter notebooks de prueba
-│   └── iol_api_doc.MD      # Documentacion de la API
+├── doc/                    # Documentacion y ejemplos
+│   ├── README.md           # Indice de documentacion
+│   ├── iol_api_doc.MD      # Documentacion de la API de IOL
+│   └── notebooks/          # Jupyter notebooks de ejemplo
+│       ├── 01_autenticacion.ipynb
+│       ├── 02_cotizaciones_basicas.ipynb
+│       ├── 03_cotizaciones_avanzadas.ipynb
+│       ├── 04_cuenta_portafolio.ipynb
+│       ├── 05_trading.ipynb
+│       ├── 06_fci.ipynb
+│       ├── 07_mep_simplificado.ipynb
+│       ├── 08_cpd.ipynb
+│       └── 09_asesores.ipynb
 ├── pyproject.toml          # Configuracion del proyecto
 ├── .env.example            # Ejemplo de credenciales
 └── README.md               # Este archivo
 ```
+
+## Documentacion
+
+La documentacion completa se encuentra en la carpeta [`doc/`](./doc/):
+
+- **[Documentacion de la API](./doc/iol_api_doc.MD)** - Referencia completa de endpoints de IOL
+- **[Notebooks de ejemplo](./doc/notebooks/)** - Jupyter notebooks interactivos para cada funcionalidad
 
 ## Endpoints Disponibles
 
