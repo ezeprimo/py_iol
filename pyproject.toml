@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pyiol"
+name = "iol-python"
 version = "0.1.0"
 description = "Cliente Python para la API de Invertir Online"
 authors = [

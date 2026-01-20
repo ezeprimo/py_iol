@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/pyiol
+      url: https://test.pypi.org/p/iol-python
     permissions:
       id-token: write  # Required for trusted publishing
 
@@ -133,7 +133,7 @@ jobs:
           echo "Version: ${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "Prerelease: ${{ needs.validate.outputs.is_prerelease }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "[View on TestPyPI](https://test.pypi.org/project/pyiol/${{ needs.validate.outputs.version }}/)" >> $GITHUB_STEP_SUMMARY
+          echo "[View on TestPyPI](https://test.pypi.org/project/iol-python/${{ needs.validate.outputs.version }}/)" >> $GITHUB_STEP_SUMMARY
 
   publish-pypi:
     name: Publish to PyPI
@@ -143,7 +143,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/pyiol
+      url: https://pypi.org/p/iol-python
     permissions:
       id-token: write  # Required for trusted publishing
 
@@ -163,7 +163,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Version: ${{ needs.validate.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "[View on PyPI](https://pypi.org/project/pyiol/${{ needs.validate.outputs.version }}/)" >> $GITHUB_STEP_SUMMARY
+          echo "[View on PyPI](https://pypi.org/project/iol-python/${{ needs.validate.outputs.version }}/)" >> $GITHUB_STEP_SUMMARY
 
   skip-pypi-notice:
     name: Skip PyPI (Prerelease)

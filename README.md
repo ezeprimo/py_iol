@@ -40,7 +40,13 @@ Cliente Python para interactuar con la API REST de **Invertir Online (IOL)**, un
 
 ## Instalacion
 
-### Desde el repositorio
+### Desde PyPI
+
+```bash
+pip install iol-python
+```
+
+### Desde el repositorio (desarrollo)
 
 ```bash
 # Clonar el repositorio
