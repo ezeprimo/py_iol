@@ -201,7 +201,7 @@ python scripts/validate_version.py v0.2.0
 Para probar un prerelease:
 
 ```bash
-pip install -i https://test.pypi.org/simple/ iol-python==0.2.0b1
+pip install -i https://test.pypi.org/simple/ pyiol-client==0.2.0b1
 ```
 
 > Nota: pip normaliza versiones, `0.2.0-beta.1` se convierte en `0.2.0b1`

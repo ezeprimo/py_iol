@@ -43,7 +43,7 @@ Cliente Python para interactuar con la API REST de **Invertir Online (IOL)**, un
 ### Desde PyPI
 
 ```bash
-pip install iol-python
+pip install pyiol-client
 ```
 
 ### Desde el repositorio (desarrollo)
