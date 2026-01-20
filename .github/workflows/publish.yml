@@ -29,13 +29,14 @@ jobs:
         id: get_pyproject_version
         run: |
           # Extract version from pyproject.toml
-          PYPROJECT_VERSION=$(python -c "
+          PYPROJECT_VERSION=$(python3 << 'EOF'
           import re
           with open('pyproject.toml', 'r') as f:
               content = f.read()
-          match = re.search(r'version\s*=\s*[\"']([^\"']+)[\"']', content)
+          match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', content)
           print(match.group(1) if match else '')
-          ")
+          EOF
+          )
           echo "pyproject.toml version: $PYPROJECT_VERSION"
           echo "pyproject_version=$PYPROJECT_VERSION" >> $GITHUB_OUTPUT
 
