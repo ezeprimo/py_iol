@@ -16,12 +16,55 @@ dependencies = [
     "httpx>=0.24.0",
     "cachetools>=5.0.0",
 ]
+keywords = [
+    "iol",
+    "invertir online",
+    "trading",
+    "argentina",
+    "api",
+    "stocks",
+    "finance",
+    "investment",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 
 [project.optional-dependencies]
 dev = [
     "jupyter>=1.0.0",
     "python-dotenv>=1.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ezeprimo/py_iol"
+Repository = "https://github.com/ezeprimo/py_iol"
+"Bug Tracker" = "https://github.com/ezeprimo/py_iol/issues"
+Documentation = "https://github.com/ezeprimo/py_iol/tree/master/doc"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.git",
+    "/doc",
+    "/xdoc",
+    "/.env",
+    "/.env.*",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["pyIol"]
 
 [tool.uv]
 dev-dependencies = [
