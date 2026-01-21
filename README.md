@@ -248,8 +248,8 @@ Markets.ROFX    # ROFEX (Futuros)
 from pyIol import SettlementTerms
 
 SettlementTerms.T0  # Contado inmediato
-SettlementTerms.T1  # 24 horas
-SettlementTerms.T2  # 48 horas (default)
+SettlementTerms.T1  # 24 horas (default)
+SettlementTerms.T2  # 48 horas
 SettlementTerms.T3  # 72 horas
 ```
 
