@@ -1,5 +1,11 @@
 # pyIOL
 
+[![CI](https://github.com/ezeprimo/py_iol/actions/workflows/ci.yml/badge.svg)](https://github.com/ezeprimo/py_iol/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-46%25-yellow)](https://github.com/ezeprimo/py_iol/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/pyiol-client)](https://pypi.org/project/pyiol-client/)
+[![Python versions](https://img.shields.io/pypi/pyversions/pyiol-client)](https://pypi.org/project/pyiol-client/)
+[![License](https://img.shields.io/github/license/ezeprimo/py_iol)](https://github.com/ezeprimo/py_iol/blob/master/LICENCE)
+
 Cliente Python para interactuar con la API REST de **Invertir Online (IOL)**, una plataforma de trading e inversiones de Argentina.
 
 ## Disclaimer
