@@ -62,11 +62,15 @@ Cliente API con Modelos de Datos Tipados:
    - Versiones "raw" (dict) y tipadas (dataclass)
 
 2. **Modelos** - Dataclasses tipadas:
-   - `CotizacionTitulo`, `CotizacionDetallada`, `CotizacionOpcion`
-   - `DatosTitulo`, `OpcionTitulo`
-   - `Punta`, `PuntasCotizacion`
-   - `TituloCotizacion`, `CotizacionesMasivas`
-   - `InstrumentoPais`
+   - Cotizaciones: `CotizacionTitulo`, `CotizacionDetallada`, `Punta`, `PuntasCotizacion`, `TituloCotizacion`, `CotizacionesMasivas`
+   - Titulos: `DatosTitulo`, `OpcionTitulo`, `InstrumentoPais`
+   - Perfil: `DatosPerfil`
+   - Cuenta: `EstadoCuenta`, `Estadistica`, `Cuenta`, `Saldo`, `Portafolio`, `TituloPortafolio`
+   - Operaciones: `Operacion`, `OperacionDetalle`, `OrdenOperacion`, `ResultadoOrden`
+   - FCI: `FondoComunInversion`, `FCIDetalle`, `TipoFondo`, `AdministradoraFCI`
+   - Trading: `OrdenEspecieD`, `OrdenFCI`, `ResultadoFCI`
+   - MEP: `EstimacionMEP`, `ParametrosMEP`, `ValidacionMEP`, `ResultadoMEP`
+   - CPD: `PuedeOperarCPD`, `ChequeCPD`, `ComisionesCPD`, `OrdenCPD`, `ResultadoCPD`
 
 3. **Constantes**:
    - `Markets` - Mercados (BCBA, NYSE, NASDAQ, AMEX, BCS, ROFX)
@@ -87,7 +91,7 @@ Cliente API con Modelos de Datos Tipados:
 | Metodo | Descripcion | Retorna |
 |--------|-------------|---------|
 | `test_authentication()` | Prueba autenticacion | `bool` |
-| `get_profile_data()` | Datos del perfil | `dict` |
+| `get_profile_data()` | Datos del perfil | `DatosPerfil` |
 | `get_mep_dollar_rate(symbol)` | Dolar MEP | `dict` |
 | `get_stock_quote(symbol, market, settlement_term)` | Cotizacion de accion | `CotizacionTitulo` |
 | `get_stock_data(symbol, market)` | Datos del titulo | `DatosTitulo` |

@@ -161,14 +161,29 @@ class TestIOLClientGetMethods:
     def test_get_profile_data(self, mock_request):
         """Verifica get_profile_data"""
         mock_request.return_value = {
-            "nombre": "Test User",
+            "nombre": "Test",
+            "apellido": "User",
+            "numeroCuenta": "12345",
+            "dni": "12.345.678",
+            "cuitCuil": "20123456789",
+            "sexo": "Masculino",
+            "perfilInversor": "Moderado",
             "email": "test@example.com",
+            "cuentaAbierta": True,
+            "actualizarDDJJ": False,
+            "actualizarTestInversor": False,
+            "esBajaArrepentimiento": False,
+            "actualizarTyC": False,
+            "actualizarTyCApp": False,
         }
 
         with IOLClient("test_user", "test_password") as client:
             result = client.get_profile_data()
 
-            assert result["nombre"] == "Test User"
+            assert result.nombre == "Test"
+            assert result.apellido == "User"
+            assert result.email == "test@example.com"
+            assert result.perfil_inversor == "Moderado"
             mock_request.assert_called_once_with("GET", "/datos-perfil")
 
     @patch.object(IOLClient, "_make_authenticated_request")

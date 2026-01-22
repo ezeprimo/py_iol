@@ -145,12 +145,24 @@ class IOLClient:
         except IOLAPIError:
             return False
 
-    def get_profile_data(self) -> Dict[str, Any]:
+    def get_profile_data(self) -> "DatosPerfil":
         """
         Obtiene los datos del perfil del usuario autenticado
 
         Returns:
-            Datos del perfil del usuario
+            Objeto DatosPerfil con los datos del usuario
+        """
+        from .models import DatosPerfil
+
+        data = self._make_authenticated_request("GET", "/datos-perfil")
+        return DatosPerfil.from_dict(data)
+
+    def get_profile_data_raw(self) -> Dict[str, Any]:
+        """
+        Obtiene los datos del perfil del usuario autenticado (versión JSON)
+
+        Returns:
+            Diccionario con los datos del perfil del usuario
         """
         return self._make_authenticated_request("GET", "/datos-perfil")
 
