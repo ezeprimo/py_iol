@@ -15,6 +15,7 @@ from .models import (
     CotizacionDetallada,
     CotizacionesMasivas,
     CotizacionTitulo,
+    DatosPerfil,
     DatosTitulo,
     EstadoCuenta,
     EstimacionMEP,
@@ -145,15 +146,13 @@ class IOLClient:
         except IOLAPIError:
             return False
 
-    def get_profile_data(self) -> "DatosPerfil":
+    def get_profile_data(self) -> DatosPerfil:
         """
         Obtiene los datos del perfil del usuario autenticado
 
         Returns:
             Objeto DatosPerfil con los datos del usuario
         """
-        from .models import DatosPerfil
-
         data = self._make_authenticated_request("GET", "/datos-perfil")
         return DatosPerfil.from_dict(data)
 
