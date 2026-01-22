@@ -96,12 +96,12 @@ def sample_auth_response():
 
 @pytest.fixture
 def sample_estado_cuenta_data():
-    """Datos de ejemplo para EstadoCuenta"""
+    """Datos de ejemplo para EstadoCuenta (basado en respuesta real de la API)"""
     return {
         "cuentas": [
             {
                 "numero": "12345",
-                "tipo": "inversion_Argentina",
+                "tipo": "inversion_Argentina_Pesos",
                 "moneda": "peso_Argentino",
                 "disponible": 50000.00,
                 "comprometido": 10000.00,
@@ -115,14 +115,24 @@ def sample_estado_cuenta_data():
                         "saldo": 50000.00,
                         "comprometido": 10000.00,
                         "disponible": 40000.00,
+                        "disponibleOperar": 40000.00,
                     }
                 ],
+                "estado": "operable",
             }
         ],
-        "estadisticas": {
-            "variacionDiaria": 1250.50,
-            "variacionDiariaPorcentaje": 0.85,
-        },
+        "estadisticas": [
+            {
+                "descripcion": "Anterior",
+                "cantidad": 0,
+                "volumen": 0,
+            },
+            {
+                "descripcion": "Actual",
+                "cantidad": 5,
+                "volumen": 12500.50,
+            },
+        ],
         "totalEnPesos": 210000.00,
     }
 

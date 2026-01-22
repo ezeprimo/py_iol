@@ -27,8 +27,11 @@ from .models import (
     # Modelos de cotizaciones
     CotizacionTitulo,
     Cuenta,
+    # Modelos de perfil de usuario
+    DatosPerfil,
     DatosTitulo,
     # Modelos de estado de cuenta y portafolio
+    Estadistica,
     EstadoCuenta,
     # Modelos de MEP Simplificado
     EstimacionMEP,
@@ -103,6 +106,7 @@ __all__ = [
     "CotizacionDetallada",
     # Modelos de estado de cuenta y portafolio
     "EstadoCuenta",
+    "Estadistica",
     "Cuenta",
     "Saldo",
     "Portafolio",
@@ -111,6 +115,8 @@ __all__ = [
     "TituloInfo",
     "Operacion",
     "OperacionDetalle",
+    # Modelos de perfil de usuario
+    "DatosPerfil",
     # Modelos de trading
     "OrdenOperacion",
     "ResultadoOrden",

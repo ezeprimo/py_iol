@@ -269,13 +269,23 @@ class TestEstadoCuenta:
 
         assert len(estado.cuentas) == 1
         assert estado.cuentas[0].numero == "12345"
+        assert estado.cuentas[0].estado == "operable"
+        assert estado.cuentas[0].titulos_valorizados == 150000.00
         assert estado.total_en_pesos == 210000.00
+        # Verificar estadisticas
+        assert len(estado.estadisticas) == 2
+        assert estado.estadisticas[0].descripcion == "Anterior"
+        assert estado.estadisticas[0].cantidad == 0
+        assert estado.estadisticas[1].descripcion == "Actual"
+        assert estado.estadisticas[1].cantidad == 5
+        assert estado.estadisticas[1].volumen == 12500.50
 
     def test_from_dict_empty(self):
         """Verifica la creacion con diccionario vacio"""
         estado = EstadoCuenta.from_dict({})
 
         assert estado.cuentas == []
+        assert estado.estadisticas == []
         assert estado.total_en_pesos == 0.0
 
 

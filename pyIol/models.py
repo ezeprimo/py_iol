@@ -709,6 +709,77 @@ class CotizacionDetallada:
 
 
 # =============================================================================
+# MODELOS DE PERFIL DE USUARIO
+# =============================================================================
+
+
+@dataclass
+class DatosPerfil:
+    """
+    Modelo para los datos del perfil del usuario.
+    Representa la información personal y de cuenta del usuario en IOL.
+    """
+
+    nombre: str
+    apellido: str
+    numero_cuenta: str
+    dni: str
+    cuit_cuil: str
+    sexo: str
+    perfil_inversor: str  # "Conservador", "Moderado", "Agresivo"
+    email: str
+    cuenta_abierta: bool
+    actualizar_ddjj: bool  # Debe actualizar declaración jurada
+    actualizar_test_inversor: bool  # Debe actualizar test de inversor
+    es_baja_arrepentimiento: bool
+    actualizar_tyc: bool  # Debe actualizar términos y condiciones
+    actualizar_tyc_app: bool  # Debe actualizar T&C de la app
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "DatosPerfil":
+        """Crea una instancia de DatosPerfil desde un diccionario"""
+        return cls(
+            nombre=data.get("nombre", ""),
+            apellido=data.get("apellido", ""),
+            numero_cuenta=data.get("numeroCuenta", ""),
+            dni=data.get("dni", ""),
+            cuit_cuil=data.get("cuitCuil", ""),
+            sexo=data.get("sexo", ""),
+            perfil_inversor=data.get("perfilInversor", ""),
+            email=data.get("email", ""),
+            cuenta_abierta=data.get("cuentaAbierta", False),
+            actualizar_ddjj=data.get("actualizarDDJJ", False),
+            actualizar_test_inversor=data.get("actualizarTestInversor", False),
+            es_baja_arrepentimiento=data.get("esBajaArrepentimiento", False),
+            actualizar_tyc=data.get("actualizarTyC", False),
+            actualizar_tyc_app=data.get("actualizarTyCApp", False),
+        )
+
+    def __str__(self) -> str:
+        return (
+            f"{self.nombre} {self.apellido}\n"
+            f"Cuenta: {self.numero_cuenta} | DNI: {self.dni}\n"
+            f"CUIT/CUIL: {self.cuit_cuil} | Email: {self.email}\n"
+            f"Perfil inversor: {self.perfil_inversor}"
+        )
+
+    @property
+    def nombre_completo(self) -> str:
+        """Retorna el nombre completo del usuario"""
+        return f"{self.nombre} {self.apellido}"
+
+    @property
+    def requiere_actualizacion(self) -> bool:
+        """Retorna True si el usuario debe actualizar algún dato"""
+        return (
+            self.actualizar_ddjj
+            or self.actualizar_test_inversor
+            or self.actualizar_tyc
+            or self.actualizar_tyc_app
+        )
+
+
+# =============================================================================
 # MODELOS DE ESTADO DE CUENTA Y PORTAFOLIO
 # =============================================================================
 
@@ -748,10 +819,11 @@ class Cuenta:
     disponible: float
     comprometido: float
     saldo: float
-    titulo_valorizado: float
+    titulos_valorizados: float  # Cambiado de titulo_valorizado a titulos_valorizados
     total: float
     margen_descubierto: float
     saldos: List["Saldo"]
+    estado: str  # Estado de la cuenta (ej: "operable")
 
     @classmethod
     def from_dict(cls, data: dict) -> "Cuenta":
@@ -766,18 +838,40 @@ class Cuenta:
             disponible=data.get("disponible", 0.0),
             comprometido=data.get("comprometido", 0.0),
             saldo=data.get("saldo", 0.0),
-            titulo_valorizado=data.get("tituloValorizado", 0.0),
+            titulos_valorizados=data.get("titulosValorizados", 0.0),  # Corregido nombre del campo
             total=data.get("total", 0.0),
             margen_descubierto=data.get("margenDescubierto", 0.0),
             saldos=saldos,
+            estado=data.get("estado", ""),  # Nuevo campo
         )
 
     def __str__(self) -> str:
         return (
             f"Cuenta {self.numero} ({self.tipo}) - {self.moneda}\n"
             f"Saldo: ${self.saldo:,.2f} | Disponible: ${self.disponible:,.2f}\n"
-            f"Títulos: ${self.titulo_valorizado:,.2f} | Total: ${self.total:,.2f}"
+            f"Títulos: ${self.titulos_valorizados:,.2f} | Total: ${self.total:,.2f}"
         )
+
+
+@dataclass
+class Estadistica:
+    """Modelo para las estadísticas de operaciones del estado de cuenta"""
+
+    descripcion: str  # "Anterior" o "Actual"
+    cantidad: int  # Cantidad de operaciones
+    volumen: float  # Volumen operado
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Estadistica":
+        """Crea una instancia de Estadistica desde un diccionario"""
+        return cls(
+            descripcion=data.get("descripcion", ""),
+            cantidad=data.get("cantidad", 0),
+            volumen=data.get("volumen", 0.0),
+        )
+
+    def __str__(self) -> str:
+        return f"{self.descripcion}: {self.cantidad} ops, ${self.volumen:,.2f}"
 
 
 @dataclass
@@ -786,6 +880,7 @@ class EstadoCuenta:
 
     cuentas: List[Cuenta]
     total_en_pesos: float
+    estadisticas: List[Estadistica]  # Estadísticas de operaciones
 
     @classmethod
     def from_dict(cls, data: dict) -> "EstadoCuenta":
@@ -793,7 +888,16 @@ class EstadoCuenta:
         cuentas_data = data.get("cuentas", [])
         cuentas = [Cuenta.from_dict(c) for c in cuentas_data] if cuentas_data else []
 
-        return cls(cuentas=cuentas, total_en_pesos=data.get("totalEnPesos", 0.0))
+        estadisticas_data = data.get("estadisticas", [])
+        estadisticas = (
+            [Estadistica.from_dict(e) for e in estadisticas_data] if estadisticas_data else []
+        )
+
+        return cls(
+            cuentas=cuentas,
+            total_en_pesos=data.get("totalEnPesos", 0.0),
+            estadisticas=estadisticas,
+        )
 
     def __str__(self) -> str:
         return (
@@ -982,28 +1086,31 @@ class Operacion:
     """Modelo para una operación"""
 
     numero: int
-    fecha_ordenado: datetime
-    tipo: str  # "Compra", "Venta"
+    fecha_orden: datetime  # Corregido: fechaOrden en la API
+    tipo: str  # "Compra", "Venta", "Pago de Dividendos"
     estado: str  # "pendiente", "terminada", "cancelada"
     mercado: str
     simbolo: str
     cantidad: Optional[int]
     cantidad_operada: Optional[int]
     precio: Optional[float]
+    precio_operado: Optional[float]  # Nuevo: precio al que se ejecutó
     monto: Optional[float]
-    modalidad: str
-    plazo: str
+    monto_operado: Optional[float]  # Nuevo: monto total operado
+    modalidad: str  # "precio_Limite", "precio_Mercado"
+    plazo: str  # "a24horas", "inmediata", etc.
     validez: Optional[datetime]
+    fecha_operada: Optional[datetime]  # Nuevo: fecha de ejecución
 
     @classmethod
     def from_dict(cls, data: dict) -> "Operacion":
         """Crea una instancia de Operacion desde un diccionario"""
-        # Parsear fecha ordenado
-        fecha_ordenado_str = data.get("fechaOrdenado", "")
+        # Parsear fecha orden (API usa "fechaOrden", no "fechaOrdenado")
+        fecha_orden_str = data.get("fechaOrden", data.get("fechaOrdenado", ""))
         try:
-            fecha_ordenado = datetime.fromisoformat(fecha_ordenado_str.replace("Z", "+00:00"))
+            fecha_orden = datetime.fromisoformat(fecha_orden_str.replace("Z", "+00:00"))
         except (ValueError, AttributeError):
-            fecha_ordenado = datetime.now()
+            fecha_orden = datetime.now()
 
         # Parsear validez (puede ser null)
         validez = None
@@ -1014,9 +1121,18 @@ class Operacion:
             except (ValueError, AttributeError):
                 pass
 
+        # Parsear fecha operada (puede ser null)
+        fecha_operada = None
+        fecha_operada_str = data.get("fechaOperada")
+        if fecha_operada_str:
+            try:
+                fecha_operada = datetime.fromisoformat(fecha_operada_str.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                pass
+
         return cls(
             numero=data.get("numero", 0),
-            fecha_ordenado=fecha_ordenado,
+            fecha_orden=fecha_orden,
             tipo=data.get("tipo", ""),
             estado=data.get("estado", ""),
             mercado=data.get("mercado", ""),
@@ -1024,10 +1140,13 @@ class Operacion:
             cantidad=data.get("cantidad"),
             cantidad_operada=data.get("cantidadOperada"),
             precio=data.get("precio"),
+            precio_operado=data.get("precioOperado"),
             monto=data.get("monto"),
+            monto_operado=data.get("montoOperado"),
             modalidad=data.get("modalidad", ""),
             plazo=data.get("plazo", ""),
             validez=validez,
+            fecha_operada=fecha_operada,
         )
 
     def __str__(self) -> str:
@@ -1038,7 +1157,7 @@ class Operacion:
             f"Op #{self.numero} - {self.tipo} {self.simbolo}\n"
             f"Estado: {self.estado} | Cantidad: {cantidad_str}\n"
             f"Precio: {precio_str} | Monto: {monto_str}\n"
-            f"Fecha: {self.fecha_ordenado.strftime('%Y-%m-%d %H:%M')}"
+            f"Fecha: {self.fecha_orden.strftime('%Y-%m-%d %H:%M')}"
         )
 
     @property
@@ -1063,13 +1182,18 @@ class Operacion:
             return (self.cantidad_operada / self.cantidad) * 100
         return 0.0
 
+    # Alias para compatibilidad hacia atrás
+    @property
+    def fecha_ordenado(self) -> datetime:
+        """Alias para fecha_orden (compatibilidad hacia atrás)"""
+        return self.fecha_orden
+
 
 @dataclass
 class OperacionDetalle(Operacion):
     """Modelo para el detalle completo de una operación (hereda de Operacion)"""
 
     precio_promedio: float = 0.0
-    monto_operado: float = 0.0
     arancel: float = 0.0
     iva_arancel: float = 0.0
     derechos_mercado: float = 0.0
@@ -1079,12 +1203,12 @@ class OperacionDetalle(Operacion):
     @classmethod
     def from_dict(cls, data: dict) -> "OperacionDetalle":
         """Crea una instancia de OperacionDetalle desde un diccionario"""
-        # Parsear fecha ordenado
-        fecha_ordenado_str = data.get("fechaOrdenado", "")
+        # Parsear fecha orden (API usa "fechaOrden")
+        fecha_orden_str = data.get("fechaOrden", data.get("fechaOrdenado", ""))
         try:
-            fecha_ordenado = datetime.fromisoformat(fecha_ordenado_str.replace("Z", "+00:00"))
+            fecha_orden = datetime.fromisoformat(fecha_orden_str.replace("Z", "+00:00"))
         except (ValueError, AttributeError):
-            fecha_ordenado = datetime.now()
+            fecha_orden = datetime.now()
 
         # Parsear validez (puede ser null)
         validez = None
@@ -1095,9 +1219,18 @@ class OperacionDetalle(Operacion):
             except (ValueError, AttributeError):
                 pass
 
+        # Parsear fecha operada (puede ser null)
+        fecha_operada = None
+        fecha_operada_str = data.get("fechaOperada")
+        if fecha_operada_str:
+            try:
+                fecha_operada = datetime.fromisoformat(fecha_operada_str.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                pass
+
         return cls(
             numero=data.get("numero", 0),
-            fecha_ordenado=fecha_ordenado,
+            fecha_orden=fecha_orden,
             tipo=data.get("tipo", ""),
             estado=data.get("estado", ""),
             mercado=data.get("mercado", ""),
@@ -1105,12 +1238,14 @@ class OperacionDetalle(Operacion):
             cantidad=data.get("cantidad", 0),
             cantidad_operada=data.get("cantidadOperada", 0),
             precio=data.get("precio", 0.0),
+            precio_operado=data.get("precioOperado"),
             monto=data.get("monto", 0.0),
+            monto_operado=data.get("montoOperado"),
             modalidad=data.get("modalidad", ""),
             plazo=data.get("plazo", ""),
             validez=validez,
+            fecha_operada=fecha_operada,
             precio_promedio=data.get("precioPromedio", 0.0),
-            monto_operado=data.get("montoOperado", 0.0),
             arancel=data.get("arancel", 0.0),
             iva_arancel=data.get("ivaArancel", 0.0),
             derechos_mercado=data.get("derechosMercado", 0.0),
@@ -1519,21 +1654,25 @@ class OrdenEspecieD:
 class TipoFondo:
     """Modelo para un tipo de fondo de inversión"""
 
-    id: int
-    nombre: str
-    descripcion: Optional[str] = None
+    identificador: str  # Ej: "plazo_fijo_pesos", "renta_fija_pesos"
+    nombre: str  # Ej: "Plazos Fijos Pesos", "Renta Fija Pesos"
 
     @classmethod
     def from_dict(cls, data: dict) -> "TipoFondo":
         """Crea una instancia de TipoFondo desde un diccionario"""
         return cls(
-            id=data.get("id", 0),
-            nombre=data.get("nombre", data.get("tipoFondo", "")),
-            descripcion=data.get("descripcion"),
+            identificador=data.get("identificador", ""),
+            nombre=data.get("nombre", ""),
         )
 
     def __str__(self) -> str:
-        return f"{self.nombre} (ID: {self.id})"
+        return f"{self.nombre} ({self.identificador})"
+
+    # Alias para compatibilidad hacia atrás
+    @property
+    def id(self) -> str:
+        """Alias para identificador (compatibilidad hacia atrás)"""
+        return self.identificador
 
 
 @dataclass
@@ -1561,52 +1700,84 @@ class AdministradoraFCI:
 class FondoComunInversion:
     """
     Modelo para un Fondo Común de Inversión (FCI).
-    Representa la información básica de un FCI disponible para operar.
+    Representa la información completa de un FCI disponible para operar.
     """
 
-    simbolo: str  # Símbolo del FCI
-    nombre: str  # Nombre completo del fondo
-    tipo_fondo: str  # Tipo de fondo (ej: "Renta Fija", "Renta Variable")
-    administradora: str  # Nombre de la administradora
-    moneda: str  # Moneda del fondo
-    horizonte: Optional[str] = None  # Horizonte de inversión
-    valor_cuotaparte: Optional[float] = None  # Valor actual de la cuotaparte
+    simbolo: str  # Símbolo del FCI (ej: "PRTAVAB")
+    nombre: str  # Nombre completo del fondo (campo "descripcion" de la API)
+    tipo_fondo: str  # Tipo de fondo (ej: "renta_variable_pesos", "renta_fija_dolares")
+    moneda: str  # Moneda del fondo (ej: "peso_Argentino", "dolar_Estadounidense")
+    # Campos opcionales
+    horizonte: Optional[str] = (
+        None  # Horizonte de inversión ("Corto Plazo", "Mediano Plazo", "Largo Plazo")
+    )
+    valor_cuotaparte: Optional[float] = None  # Último valor operado de la cuotaparte
     variacion_diaria: Optional[float] = None  # Variación diaria en %
-    rescate_en_t: Optional[int] = None  # Días para rescate (T+n)
-    perfil_riesgo: Optional[str] = None  # Perfil de riesgo del fondo
+    variacion_mensual: Optional[float] = None  # Variación mensual en %
+    variacion_anual: Optional[float] = None  # Variación anual en %
+    rescate: Optional[str] = None  # Plazo de rescate (ej: "t0", "t1", "t2")
+    perfil_inversor: Optional[str] = (
+        None  # Perfil de inversor ("Conservador", "Moderado", "Agresivo")
+    )
+    monto_minimo: Optional[float] = None  # Monto mínimo de suscripción
+    invierte: Optional[str] = None  # Descripción de dónde invierte el fondo
+    administradora: Optional[str] = None  # Tipo de administradora (ej: "supervielle", "convexity")
+    aviso_horario_ejecucion: Optional[str] = None  # Aviso sobre horario de ejecución
+    fecha_corte: Optional[str] = None  # Fecha de corte para operaciones
+    codigo_bloomberg: Optional[str] = None  # Código Bloomberg del fondo
+    informe_mensual: Optional[str] = None  # URL del informe mensual
+    reglamento_gestion: Optional[str] = None  # URL del reglamento de gestión
+    pais: Optional[str] = None  # País del fondo (ej: "argentina")
+    mercado: Optional[str] = None  # Mercado (ej: "bcba")
+    tipo: Optional[str] = None  # Tipo de instrumento (ej: "FondoComundeInversion")
+    plazo: Optional[str] = None  # Plazo de liquidación (ej: "t0")
+    # Campos legacy para compatibilidad
+    patrimonio: Optional[float] = None  # Patrimonio total del fondo
     disponible_suscripcion: bool = True  # Si permite suscripción
     disponible_rescate: bool = True  # Si permite rescate
-    monto_minimo: Optional[float] = None  # Monto mínimo de suscripción
-    patrimonio: Optional[float] = None  # Patrimonio total del fondo
 
     @classmethod
     def from_dict(cls, data: dict) -> "FondoComunInversion":
         """Crea una instancia de FondoComunInversion desde un diccionario"""
         return cls(
             simbolo=data.get("simbolo", ""),
-            nombre=data.get("nombre", data.get("descripcion", "")),
+            nombre=data.get("descripcion", data.get("nombre", "")),
             tipo_fondo=data.get("tipoFondo", data.get("tipo", "")),
-            administradora=data.get("administradora", ""),
-            moneda=data.get("moneda", "ARS"),
-            horizonte=data.get("horizonte", data.get("horizonteInversion")),
-            valor_cuotaparte=data.get("valorCuotaparte", data.get("ultimoPrecio")),
-            variacion_diaria=data.get("variacionDiaria", data.get("variacion")),
-            rescate_en_t=data.get("rescateEnT", data.get("diasRescate")),
-            perfil_riesgo=data.get("perfilRiesgo"),
+            moneda=data.get("moneda", ""),
+            horizonte=data.get("horizonteInversion", data.get("horizonte")),
+            valor_cuotaparte=data.get(
+                "ultimoOperado", data.get("valorCuotaparte", data.get("ultimoPrecio"))
+            ),
+            variacion_diaria=data.get("variacion", data.get("variacionDiaria")),
+            variacion_mensual=data.get("variacionMensual"),
+            variacion_anual=data.get("variacionAnual"),
+            rescate=data.get("rescate"),
+            perfil_inversor=data.get("perfilInversor", data.get("perfilRiesgo")),
+            monto_minimo=data.get("montoMinimo"),
+            invierte=data.get("invierte"),
+            administradora=data.get("tipoAdministradoraTituloFCI", data.get("administradora")),
+            aviso_horario_ejecucion=data.get("avisoHorarioEjecucion"),
+            fecha_corte=data.get("fechaCorte"),
+            codigo_bloomberg=data.get("codigoBloomberg"),
+            informe_mensual=data.get("informeMensual"),
+            reglamento_gestion=data.get("reglamentoGestion"),
+            pais=data.get("pais"),
+            mercado=data.get("mercado"),
+            tipo=data.get("tipo"),
+            plazo=data.get("plazo"),
+            patrimonio=data.get("patrimonio"),
             disponible_suscripcion=data.get("disponibleSuscripcion", True),
             disponible_rescate=data.get("disponibleRescate", True),
-            monto_minimo=data.get("montoMinimo"),
-            patrimonio=data.get("patrimonio"),
         )
 
     def __str__(self) -> str:
         valor = f"${self.valor_cuotaparte:,.4f}" if self.valor_cuotaparte else "N/A"
-        variacion = f"{self.variacion_diaria:+.2f}%" if self.variacion_diaria else "N/A"
+        variacion = f"{self.variacion_diaria:+.2f}%" if self.variacion_diaria is not None else "N/A"
         return (
             f"{self.simbolo} - {self.nombre}\n"
-            f"Tipo: {self.tipo_fondo} | Administradora: {self.administradora}\n"
+            f"Tipo: {self.tipo_fondo} | Administradora: {self.administradora or 'N/A'}\n"
             f"Valor cuotaparte: {valor} | Variación: {variacion}\n"
-            f"Moneda: {self.moneda} | Rescate: T+{self.rescate_en_t or '?'}"
+            f"Moneda: {self.moneda} | Rescate: {self.rescate or 'N/A'}"
         )
 
     @property
@@ -1621,8 +1792,30 @@ class FondoComunInversion:
 
     @property
     def es_money_market(self) -> bool:
-        """Retorna True si es un fondo money market"""
-        return "money" in self.tipo_fondo.lower() or "mercado" in self.tipo_fondo.lower()
+        """Retorna True si es un fondo money market o plazo fijo"""
+        return "plazo_fijo" in self.tipo_fondo.lower() or "money" in self.tipo_fondo.lower()
+
+    @property
+    def es_en_dolares(self) -> bool:
+        """Retorna True si el fondo es en dólares"""
+        return "dolar" in self.moneda.lower() or "dolares" in self.tipo_fondo.lower()
+
+    @property
+    def rescate_en_t(self) -> Optional[int]:
+        """Retorna los días de rescate como entero (para compatibilidad)"""
+        if self.rescate:
+            # Extraer número de "t0", "t1", "t2", etc.
+            try:
+                return int(self.rescate.replace("t", "").replace("T", ""))
+            except ValueError:
+                pass
+        return None
+
+    # Alias para compatibilidad hacia atrás
+    @property
+    def perfil_riesgo(self) -> Optional[str]:
+        """Alias para perfil_inversor (compatibilidad hacia atrás)"""
+        return self.perfil_inversor
 
 
 @dataclass
@@ -1655,19 +1848,33 @@ class FCIDetalle(FondoComunInversion):
 
         return cls(
             simbolo=data.get("simbolo", ""),
-            nombre=data.get("nombre", data.get("descripcion", "")),
+            nombre=data.get("descripcion", data.get("nombre", "")),
             tipo_fondo=data.get("tipoFondo", data.get("tipo", "")),
-            administradora=data.get("administradora", ""),
-            moneda=data.get("moneda", "ARS"),
-            horizonte=data.get("horizonte", data.get("horizonteInversion")),
-            valor_cuotaparte=data.get("valorCuotaparte", data.get("ultimoPrecio")),
-            variacion_diaria=data.get("variacionDiaria", data.get("variacion")),
-            rescate_en_t=data.get("rescateEnT", data.get("diasRescate")),
-            perfil_riesgo=data.get("perfilRiesgo"),
+            moneda=data.get("moneda", ""),
+            horizonte=data.get("horizonteInversion", data.get("horizonte")),
+            valor_cuotaparte=data.get(
+                "ultimoOperado", data.get("valorCuotaparte", data.get("ultimoPrecio"))
+            ),
+            variacion_diaria=data.get("variacion", data.get("variacionDiaria")),
+            variacion_mensual=data.get("variacionMensual"),
+            variacion_anual=data.get("variacionAnual"),
+            rescate=data.get("rescate"),
+            perfil_inversor=data.get("perfilInversor", data.get("perfilRiesgo")),
+            monto_minimo=data.get("montoMinimo"),
+            invierte=data.get("invierte"),
+            administradora=data.get("tipoAdministradoraTituloFCI", data.get("administradora")),
+            aviso_horario_ejecucion=data.get("avisoHorarioEjecucion"),
+            fecha_corte=data.get("fechaCorte"),
+            codigo_bloomberg=data.get("codigoBloomberg"),
+            informe_mensual=data.get("informeMensual"),
+            reglamento_gestion=data.get("reglamentoGestion"),
+            pais=data.get("pais"),
+            mercado=data.get("mercado"),
+            tipo=data.get("tipo"),
+            plazo=data.get("plazo"),
+            patrimonio=data.get("patrimonio"),
             disponible_suscripcion=data.get("disponibleSuscripcion", True),
             disponible_rescate=data.get("disponibleRescate", True),
-            monto_minimo=data.get("montoMinimo"),
-            patrimonio=data.get("patrimonio"),
             fecha_cotizacion=fecha_cotizacion,
             rendimiento_mes=data.get("rendimientoMes"),
             rendimiento_anio=data.get("rendimientoAnio", data.get("rendimientoAño")),
