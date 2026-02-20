@@ -304,7 +304,9 @@ class TestIOLClientTradingValidez:
         validez_default = "2026-02-20T16:03:34"
 
         with IOLClient("test_user", "test_password") as client:
-            with patch.object(client, "_get_default_validez", return_value=validez_default) as mock_val:
+            with patch.object(
+                client, "_get_default_validez", return_value=validez_default
+            ) as mock_val:
                 method = getattr(client, method_name)
 
                 if is_advisor:
@@ -340,7 +342,9 @@ class TestIOLClientTradingValidez:
         validez_explicita = "2026-03-01T10:00:00"
 
         with IOLClient("test_user", "test_password") as client:
-            with patch.object(client, "_get_default_validez", return_value="NO-DEBERIA-USARSE") as mock_val:
+            with patch.object(
+                client, "_get_default_validez", return_value="NO-DEBERIA-USARSE"
+            ) as mock_val:
                 method = getattr(client, method_name)
 
                 if is_advisor:
