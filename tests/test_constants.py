@@ -6,6 +6,7 @@ from pyIol.constants import (
     API_BASE_URL,
     DEFAULT_COUNTRY,
     DEFAULT_MARKET,
+    DEFAULT_ORDER_VALIDITY_HOURS,
     DEFAULT_SETTLEMENT_TERM,
     TOKEN_URL,
     USER_AGENT,
@@ -187,3 +188,7 @@ class TestDefaultValues:
     def test_default_country(self):
         """Verifica que el pais por defecto sea Argentina"""
         assert DEFAULT_COUNTRY == Countries.ARGENTINA
+
+    def test_default_order_validity_hours(self):
+        """Verifica que la validez por defecto de órdenes sea 3 horas"""
+        assert DEFAULT_ORDER_VALIDITY_HOURS == 3

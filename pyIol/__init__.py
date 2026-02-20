@@ -7,6 +7,7 @@ from .constants import (
     API_BASE_URL,
     DEFAULT_COUNTRY,
     DEFAULT_MARKET,
+    DEFAULT_ORDER_VALIDITY_HOURS,
     DEFAULT_SETTLEMENT_TERM,
     TOKEN_URL,
     USER_AGENT,
@@ -94,6 +95,7 @@ __all__ = [
     "DEFAULT_MARKET",
     "DEFAULT_SETTLEMENT_TERM",
     "DEFAULT_COUNTRY",
+    "DEFAULT_ORDER_VALIDITY_HOURS",
     # Modelos de cotizaciones
     "CotizacionTitulo",
     "Punta",

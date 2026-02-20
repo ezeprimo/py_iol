@@ -277,6 +277,88 @@ class TestIOLClientGetMethods:
             assert len(result.activos) == 1
 
 
+class TestIOLClientTradingValidez:
+    """Tests de validez por defecto en métodos de trading"""
+
+    @pytest.mark.parametrize(
+        "method_name,is_advisor",
+        [
+            ("buy", False),
+            ("buy_raw", False),
+            ("sell", False),
+            ("sell_raw", False),
+            ("buy_dollar_bond", False),
+            ("buy_dollar_bond_raw", False),
+            ("sell_dollar_bond", False),
+            ("sell_dollar_bond_raw", False),
+            ("advisor_sell_dollar_bond", True),
+            ("advisor_sell_dollar_bond_raw", True),
+        ],
+    )
+    @patch.object(IOLClient, "_make_authenticated_request")
+    def test_usa_validez_default_si_no_se_envia(
+        self, mock_request, method_name: str, is_advisor: bool
+    ):
+        """Verifica que se envía validez default (+3h) cuando no se pasa el argumento"""
+        mock_request.return_value = {"numeroOperacion": 12345, "ok": True}
+        validez_default = "2026-02-20T16:03:34"
+
+        with IOLClient("test_user", "test_password") as client:
+            with patch.object(client, "_get_default_validez", return_value=validez_default) as mock_val:
+                method = getattr(client, method_name)
+
+                if is_advisor:
+                    method(id_cliente="123", simbolo="AL30D", cantidad=1, precio=50.0)
+                else:
+                    method(simbolo="GGAL", cantidad=1, precio=7500.0)
+
+                sent_payload = mock_request.call_args.kwargs["json"]
+                assert sent_payload["validez"] == validez_default
+                mock_val.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "method_name,is_advisor",
+        [
+            ("buy", False),
+            ("buy_raw", False),
+            ("sell", False),
+            ("sell_raw", False),
+            ("buy_dollar_bond", False),
+            ("buy_dollar_bond_raw", False),
+            ("sell_dollar_bond", False),
+            ("sell_dollar_bond_raw", False),
+            ("advisor_sell_dollar_bond", True),
+            ("advisor_sell_dollar_bond_raw", True),
+        ],
+    )
+    @patch.object(IOLClient, "_make_authenticated_request")
+    def test_respeta_validez_explicita_si_se_envia(
+        self, mock_request, method_name: str, is_advisor: bool
+    ):
+        """Verifica que una validez explícita tiene prioridad sobre el default"""
+        mock_request.return_value = {"numeroOperacion": 12345, "ok": True}
+        validez_explicita = "2026-03-01T10:00:00"
+
+        with IOLClient("test_user", "test_password") as client:
+            with patch.object(client, "_get_default_validez", return_value="NO-DEBERIA-USARSE") as mock_val:
+                method = getattr(client, method_name)
+
+                if is_advisor:
+                    method(
+                        id_cliente="123",
+                        simbolo="AL30D",
+                        cantidad=1,
+                        precio=50.0,
+                        validez=validez_explicita,
+                    )
+                else:
+                    method(simbolo="GGAL", cantidad=1, precio=7500.0, validez=validez_explicita)
+
+                sent_payload = mock_request.call_args.kwargs["json"]
+                assert sent_payload["validez"] == validez_explicita
+                mock_val.assert_not_called()
+
+
 class TestIOLAPIError:
     """Tests para la excepcion IOLAPIError"""
 

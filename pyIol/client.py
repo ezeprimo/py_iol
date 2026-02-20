@@ -2,12 +2,20 @@
 Cliente para la API de Invertir Online (IOL)
 """
 
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import httpx
 from cachetools import TTLCache, cached
 
-from .constants import API_BASE_URL, DEFAULT_MARKET, DEFAULT_SETTLEMENT_TERM, TOKEN_URL, USER_AGENT
+from .constants import (
+    API_BASE_URL,
+    DEFAULT_MARKET,
+    DEFAULT_ORDER_VALIDITY_HOURS,
+    DEFAULT_SETTLEMENT_TERM,
+    TOKEN_URL,
+    USER_AGENT,
+)
 from .models import (
     AdministradoraFCI,
     ChequeCPD,
@@ -71,6 +79,22 @@ class IOLClient:
     def close(self):
         """Cierra la sesión HTTP"""
         self._session.close()
+
+    def _get_default_validez(self) -> str:
+        """
+        Genera una fecha de validez por defecto (3 horas en el futuro en UTC)
+
+        Returns:
+            String en formato ISO8601 con la fecha 3 horas en el futuro
+
+        Example:
+            >>> # Si es 2025-02-20 13:03:34 UTC
+            >>> validez = client._get_default_validez()
+            >>> # Retorna: "2025-02-20T16:03:34"
+        """
+        ahora = datetime.utcnow()
+        validez_futura = ahora + timedelta(hours=DEFAULT_ORDER_VALIDITY_HOURS)
+        return validez_futura.isoformat()
 
     @cached(cache=TTLCache(maxsize=3, ttl=870))  # Cache por 14.5 minutos (tokens duran 15 min)
     def _get_auth_token(self) -> str:
@@ -923,7 +947,7 @@ class IOLClient:
             mercado: Mercado donde operar (por defecto bCBA). Usar Markets.*
             plazo: Plazo de liquidación (por defecto t1). Usar SettlementTerms.*
             validez: Fecha de validez de la orden en formato ISO (ej: "2025-12-31T23:59:59")
-                    Si no se especifica, la orden es válida solo por el día.
+                    Si no se especifica, se usa un default de 3 horas en el futuro.
 
         Returns:
             Objeto ResultadoOrden con el número de operación asignado
@@ -946,7 +970,9 @@ class IOLClient:
             "plazo": plazo,
         }
 
-        if validez:
+        if validez is None:
+            payload["validez"] = self._get_default_validez()
+        elif validez:
             payload["validez"] = validez
 
         data = self._make_authenticated_request("POST", "/operar/Comprar", json=payload)
@@ -972,6 +998,7 @@ class IOLClient:
             mercado: Mercado donde operar (por defecto bCBA)
             plazo: Plazo de liquidación (por defecto t1)
             validez: Fecha de validez de la orden en formato ISO
+                    Si no se especifica, se usa un default de 3 horas en el futuro.
 
         Returns:
             Diccionario con la respuesta de la API
@@ -987,7 +1014,9 @@ class IOLClient:
             "plazo": plazo,
         }
 
-        if validez:
+        if validez is None:
+            payload["validez"] = self._get_default_validez()
+        elif validez:
             payload["validez"] = validez
 
         return self._make_authenticated_request("POST", "/operar/Comprar", json=payload)
@@ -1014,7 +1043,7 @@ class IOLClient:
             mercado: Mercado donde operar (por defecto bCBA). Usar Markets.*
             plazo: Plazo de liquidación (por defecto t1). Usar SettlementTerms.*
             validez: Fecha de validez de la orden en formato ISO (ej: "2025-12-31T23:59:59")
-                    Si no se especifica, la orden es válida solo por el día.
+                    Si no se especifica, se usa un default de 3 horas en el futuro.
 
         Returns:
             Objeto ResultadoOrden con el número de operación asignado
@@ -1037,7 +1066,9 @@ class IOLClient:
             "plazo": plazo,
         }
 
-        if validez:
+        if validez is None:
+            payload["validez"] = self._get_default_validez()
+        elif validez:
             payload["validez"] = validez
 
         data = self._make_authenticated_request("POST", "/operar/Vender", json=payload)
@@ -1063,6 +1094,7 @@ class IOLClient:
             mercado: Mercado donde operar (por defecto bCBA)
             plazo: Plazo de liquidación (por defecto t1)
             validez: Fecha de validez de la orden en formato ISO
+                    Si no se especifica, se usa un default de 3 horas en el futuro.
 
         Returns:
             Diccionario con la respuesta de la API
@@ -1078,7 +1110,9 @@ class IOLClient:
             "plazo": plazo,
         }
 
-        if validez:
+        if validez is None:
+            payload["validez"] = self._get_default_validez()
+        elif validez:
             payload["validez"] = validez
 
         return self._make_authenticated_request("POST", "/operar/Vender", json=payload)
@@ -1106,6 +1140,7 @@ class IOLClient:
             mercado: Mercado donde operar (por defecto bCBA). Usar Markets.*
             plazo: Plazo de liquidación (por defecto t1). Usar SettlementTerms.*
             validez: Fecha de validez de la orden en formato ISO
+                    Si no se especifica, se usa un default de 3 horas en el futuro.
 
         Returns:
             Objeto ResultadoOrden con el número de operación asignado
@@ -1128,7 +1163,9 @@ class IOLClient:
             "plazo": plazo,
         }
 
-        if validez:
+        if validez is None:
+            payload["validez"] = self._get_default_validez()
+        elif validez:
             payload["validez"] = validez
 
         data = self._make_authenticated_request("POST", "/operar/ComprarEspecieD", json=payload)
@@ -1154,6 +1191,7 @@ class IOLClient:
             mercado: Mercado donde operar
             plazo: Plazo de liquidación
             validez: Fecha de validez de la orden
+                    Si no se especifica, se usa un default de 3 horas en el futuro.
 
         Returns:
             Diccionario con la respuesta de la API
@@ -1169,7 +1207,9 @@ class IOLClient:
             "plazo": plazo,
         }
 
-        if validez:
+        if validez is None:
+            payload["validez"] = self._get_default_validez()
+        elif validez:
             payload["validez"] = validez
 
         return self._make_authenticated_request("POST", "/operar/ComprarEspecieD", json=payload)
@@ -1197,6 +1237,7 @@ class IOLClient:
             mercado: Mercado donde operar (por defecto bCBA). Usar Markets.*
             plazo: Plazo de liquidación (por defecto t1). Usar SettlementTerms.*
             validez: Fecha de validez de la orden en formato ISO
+                    Si no se especifica, se usa un default de 3 horas en el futuro.
 
         Returns:
             Objeto ResultadoOrden con el número de operación asignado
@@ -1219,7 +1260,9 @@ class IOLClient:
             "plazo": plazo,
         }
 
-        if validez:
+        if validez is None:
+            payload["validez"] = self._get_default_validez()
+        elif validez:
             payload["validez"] = validez
 
         data = self._make_authenticated_request("POST", "/operar/VenderEspecieD", json=payload)
@@ -1245,6 +1288,7 @@ class IOLClient:
             mercado: Mercado donde operar
             plazo: Plazo de liquidación
             validez: Fecha de validez de la orden
+                    Si no se especifica, se usa un default de 3 horas en el futuro.
 
         Returns:
             Diccionario con la respuesta de la API
@@ -1260,7 +1304,9 @@ class IOLClient:
             "plazo": plazo,
         }
 
-        if validez:
+        if validez is None:
+            payload["validez"] = self._get_default_validez()
+        elif validez:
             payload["validez"] = validez
 
         return self._make_authenticated_request("POST", "/operar/VenderEspecieD", json=payload)
@@ -2435,6 +2481,7 @@ class IOLClient:
             mercado: Mercado donde operar (por defecto bCBA). Usar Markets.*
             plazo: Plazo de liquidación (por defecto t1). Usar SettlementTerms.*
             validez: Fecha de validez de la orden en formato ISO
+                    Si no se especifica, se usa un default de 3 horas en el futuro.
 
         Returns:
             Objeto ResultadoOperacionAsesor con el número de operación
@@ -2464,7 +2511,9 @@ class IOLClient:
             "plazo": plazo,
         }
 
-        if validez:
+        if validez is None:
+            payload["validez"] = self._get_default_validez()
+        elif validez:
             payload["validez"] = validez
 
         data = self._make_authenticated_request(
@@ -2501,6 +2550,7 @@ class IOLClient:
             mercado: Mercado donde operar
             plazo: Plazo de liquidación
             validez: Fecha de validez de la orden
+                    Si no se especifica, se usa un default de 3 horas en el futuro.
 
         Returns:
             Diccionario con el resultado de la operación
@@ -2517,7 +2567,9 @@ class IOLClient:
             "plazo": plazo,
         }
 
-        if validez:
+        if validez is None:
+            payload["validez"] = self._get_default_validez()
+        elif validez:
             payload["validez"] = validez
 
         return self._make_authenticated_request(
