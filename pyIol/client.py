@@ -3,7 +3,7 @@ Cliente para la API de Invertir Online (IOL)
 """
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from cachetools import TTLCache, cached
@@ -58,7 +58,7 @@ class IOLAPIError(Exception):
 _AUTH_TOKEN_CACHE = TTLCache(maxsize=128, ttl=870)
 
 
-def _auth_cache_key(self: "IOLClient") -> tuple[str, str]:
+def _auth_cache_key(self: "IOLClient") -> Tuple[str, str]:
     return (self.username, self.password)
 
 
