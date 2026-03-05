@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyiol-client"
-version = "0.1.0"
+version = "0.1.1"
 description = "Cliente Python para la API de Invertir Online"
 authors = [
     {name = "Ezequiel Primon", email = "ezeprimo@gmail.com"},
