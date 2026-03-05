@@ -2120,7 +2120,7 @@ wheels = [
 
 [[package]]
 name = "pyiol-client"
-version = "0.1.0b1"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "cachetools", version = "5.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
