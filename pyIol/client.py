@@ -55,6 +55,13 @@ class IOLAPIError(Exception):
     pass
 
 
+_AUTH_TOKEN_CACHE = TTLCache(maxsize=128, ttl=870)
+
+
+def _auth_cache_key(self: "IOLClient") -> tuple[str, str]:
+    return (self.username, self.password)
+
+
 class IOLClient:
     """Cliente principal para interactuar con la API de Invertir Online"""
 
@@ -96,7 +103,9 @@ class IOLClient:
         validez_futura = ahora + timedelta(hours=DEFAULT_ORDER_VALIDITY_HOURS)
         return validez_futura.isoformat()
 
-    @cached(cache=TTLCache(maxsize=3, ttl=870))  # Cache por 14.5 minutos (tokens duran 15 min)
+    @cached(
+        cache=_AUTH_TOKEN_CACHE, key=_auth_cache_key
+    )  # Cache por 14.5 minutos (tokens duran 15 min)
     def _get_auth_token(self) -> str:
         """
         Obtiene el token de autenticación de la API
