@@ -211,6 +211,9 @@ py_iol/
 
 La documentacion completa se encuentra en la carpeta [`doc/`](./doc/):
 
+- **[Agent guide](./doc/agent-guide.md)** - English guide for programming agents building applications with pyIOL
+- **[API reference](./doc/api-reference.md)** - public `IOLClient` methods, parameters, returns, and side effects
+- **[Read-only recipes](./doc/recipes/)** - small runnable examples
 - **[Documentacion de la API](./doc/iol_api_doc.MD)** - Referencia completa de endpoints de IOL
 - **[Notebooks de ejemplo](./doc/notebooks/)** - Jupyter notebooks interactivos para cada funcionalidad
 
