@@ -1,10 +1,16 @@
-# Documentacion de pyIOL
+# pyIOL Documentation
 
-Esta carpeta contiene la documentacion y ejemplos de uso de la libreria pyIOL.
+This folder contains documentation and examples for pyIOL.
 
-## Contenido
+## Start Here
 
-### Documentacion de la API
+- **[Agent guide](./agent-guide.md)** - setup, authentication, typed/raw usage, safety, and application architecture.
+- **[API reference](./api-reference.md)** - source-derived public `IOLClient` method reference.
+- **[Recipes](./recipes/)** - small read-only Python examples.
+
+## Existing Reference
+
+### REST API Notes
 
 - **[iol_api_doc.MD](./iol_api_doc.MD)** - Documentacion completa de la API REST de Invertir Online, incluyendo:
   - Autenticacion y tokens
@@ -13,7 +19,7 @@ Esta carpeta contiene la documentacion y ejemplos de uso de la libreria pyIOL.
   - Ejemplos de uso con curl
   - Enumeraciones y constantes
 
-### Notebooks de Ejemplo
+### Example Notebooks
 
 La carpeta `notebooks/` contiene Jupyter notebooks interactivos para probar cada funcionalidad de la libreria:
 
@@ -70,7 +76,7 @@ Cada notebook sigue una estructura consistente:
 
 - Las operaciones que modifican datos (compra, venta, suscripcion FCI, etc.) estan **comentadas por seguridad** en los notebooks
 - Siempre verificar las operaciones antes de descomentar y ejecutar
-- Se recomienda probar primero en el entorno **sandbox** de IOL
+- La librería no configura un sandbox de ejecución separado; usa mocks para pruebas y cualquier entorno sandbox que IOL habilite para la cuenta
 - Los notebooks asumen que el archivo `.env` esta en la raiz del proyecto (`../../.env` relativo a los notebooks)
 
 ## Contribuir a la documentacion

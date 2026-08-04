@@ -1,0 +1,26 @@
+# pyIOL agent map
+
+pyIOL is an unofficial Python client for the Invertir Online REST API. Use the repository docs as the contract and verify source names before generating code.
+
+## Canonical documentation
+
+- Agent usage and architecture: `doc/agent-guide.md`
+- Public client methods: `doc/api-reference.md`
+- Read-only runnable recipes: `doc/recipes/`
+- Existing endpoint notes: `doc/iol_api_doc.MD`
+- Interactive examples: `doc/notebooks/`
+- Package exports: `pyIol/__init__.py`
+- Client implementation: `pyIol/client.py`
+- Dataclasses: `pyIol/models.py`
+- Constants and defaults: `pyIol/constants.py`
+
+## Quick map
+
+- Construct `IOLClient(username, password)` and prefer `with`.
+- Use typed methods for application code and `_raw()` methods only when raw API shape is required.
+- Catch `IOLAPIError`; `test_authentication()` returns a boolean.
+- Use `Markets`, `SettlementTerms`, `Countries`, and `OperationStates` instead of protocol literals.
+- Treat order, cancellation, FCI, MEP, CPD, and advisor write methods as real side effects.
+- Validate and confirm all financial inputs; do not blindly retry an uncertain submission.
+- Credentials must stay in environment variables or a secret manager.
+- `doc/` is excluded from the source distribution and the wheel contains only `pyIol`; these docs are repository documentation.
