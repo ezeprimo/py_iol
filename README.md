@@ -1,5 +1,7 @@
 # pyIOL
 
+Current release: `0.1.1`
+
 [![CI](https://github.com/ezeprimo/py_iol/actions/workflows/ci.yml/badge.svg)](https://github.com/ezeprimo/py_iol/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-46%25-yellow)](https://github.com/ezeprimo/py_iol/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/pyiol-client)](https://pypi.org/project/pyiol-client/)
