@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 
 def get_version_from_pyproject() -> str:
@@ -33,7 +34,7 @@ def get_version_from_pyproject() -> str:
     return match.group(1)
 
 
-def parse_version(version: str) -> dict:
+def parse_version(version: str) -> Optional[Dict[str, Any]]:
     """
     Parsea una versión semántica.
     
@@ -69,7 +70,7 @@ def validate_version_format(version: str) -> bool:
     return parsed is not None
 
 
-def get_tag_from_ref(ref: str) -> str | None:
+def get_tag_from_ref(ref: str) -> Optional[str]:
     """Extrae el nombre del tag de una referencia git"""
     if ref.startswith("refs/tags/v"):
         return ref[len("refs/tags/v"):]
@@ -127,7 +128,7 @@ def main():
     
     # Comparar versiones
     if tag_version != pyproject_version:
-        print(f"\n❌ ERROR: Las versiones no coinciden!")
+        print("\nERROR: Las versiones no coinciden!")
         print(f"   Tag:           {tag_version}")
         print(f"   pyproject.toml: {pyproject_version}")
         print(f"\nPor favor, actualiza pyproject.toml a version = \"{tag_version}\"")
@@ -141,11 +142,11 @@ def main():
         prerelease_info = parsed["prerelease_type"]
         if parsed["prerelease_num"]:
             prerelease_info += f".{parsed['prerelease_num']}"
-        print(f"\n✅ Versión válida: {tag_version} (PRERELEASE: {prerelease_info})")
-        print("   → Se publicará solo en TestPyPI")
+        print(f"\nOK: Version valida: {tag_version} (PRERELEASE: {prerelease_info})")
+        print("   Se publicara solo en TestPyPI")
     else:
-        print(f"\n✅ Versión válida: {tag_version} (PRODUCCIÓN)")
-        print("   → Se publicará en TestPyPI y PyPI")
+        print(f"\nOK: Version valida: {tag_version} (PRODUCCION)")
+        print("   Se publicara en TestPyPI y PyPI")
     
     sys.exit(0)
 

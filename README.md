@@ -1,5 +1,7 @@
 # pyIOL
 
+Current release: `0.1.1`
+
 [![CI](https://github.com/ezeprimo/py_iol/actions/workflows/ci.yml/badge.svg)](https://github.com/ezeprimo/py_iol/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-46%25-yellow)](https://github.com/ezeprimo/py_iol/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/pyiol-client)](https://pypi.org/project/pyiol-client/)
@@ -218,14 +220,16 @@ La documentacion completa se encuentra en la carpeta [`doc/`](./doc/):
 |-----------|---------|
 | Autenticacion | `test_authentication()` |
 | Perfil | `get_profile_data()` |
-| Cotizaciones | `get_stock_quote()`, `get_stock_data()`, `get_stock_options()`, `get_massive_quotes()`, `get_panel_quotes()`, `get_stock_quote_detailed()` |
+| Cotizaciones | `get_stock_quote()`, `get_stock_data()`, `get_stock_options()`, `get_market_instruments()`, `get_massive_quotes()`, `get_panel_quotes()`, `get_stock_quote_detailed()` |
 | Cuenta | `get_account_status()`, `get_portfolio()` |
-| Operaciones | `get_operations()`, `get_operation_detail()` |
-| Trading | `buy_stock()`, `sell_stock()` |
-| FCI | `get_fci_list()`, `get_fci_detail()`, `subscribe_fci()`, `rescue_fci()` |
-| Dolar MEP | `get_mep_dollar_rate()`, `estimate_mep_operation()` |
+| Operaciones | `get_operations()`, `get_operation_detail()`, `cancel_operation()` |
+| Trading | `buy()`, `sell()`, `buy_dollar_bond()`, `sell_dollar_bond()` |
+| FCI | `get_fci_list()`, `get_fci_detail()`, `get_fci_types()`, `get_fci_managers()`, `get_fci_types_by_manager()`, `subscribe_fci()`, `redeem_fci()` |
+| Dolar MEP | `get_mep_dollar_rate()`, `get_mep_buy_estimate()`, `get_mep_sell_estimate()`, `get_mep_parameters()`, `validate_mep_operation()`, `buy_mep_simplified()` |
+| CPD | `can_operate_cpd()`, `get_cpd_list()`, `get_cpd_commissions()`, `operate_cpd()` |
+| Asesores | `get_advisor_movements()`, `get_investor_test_questions()`, `calculate_investor_profile()`, `save_investor_profile()`, `advisor_sell_dollar_bond()` |
 
-> Cada metodo tiene su version `_raw()` que retorna el JSON original de la API.
+> Los métodos de consulta y operación disponen de una versión `_raw()` cuando está implementada, que retorna la respuesta JSON original de la API.
 
 ## Constantes Disponibles
 
@@ -280,6 +284,12 @@ Las contribuciones son bienvenidas. Consulta la [Guia de Contribucion](./CONTRIB
 3. Commit tus cambios (`git commit -am 'Agrega nueva funcionalidad'`)
 4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
 5. Abre un Pull Request
+
+## Community Policies
+
+- [Security Policy](./SECURITY.md) - Report security vulnerabilities privately.
+- [Code of Conduct](./CODE_OF_CONDUCT.md) - Community participation standards.
+- [Changelog](./CHANGELOG.md) - Release history.
 
 ## Licencia
 
