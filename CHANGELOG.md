@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **TypeError in `ComisionesCPD.from_dict()`** when the API returns numeric
+  values as strings (e.g., `"138.02"` instead of `138.02`). Added defensive
+  conversion helpers (`_to_float`, `_to_int`, `_to_optional_float`,
+  `_to_optional_int`) and applied them to every model that receives numeric
+  fields from the API (~30 models). The helpers also handle regional number
+  formatting (comma decimals, dot thousands) and non-numeric edge cases
+  (empty `{}`, `null`). (#4)
+
 ## [0.1.1] - 2026-08-04
 
 ### Added

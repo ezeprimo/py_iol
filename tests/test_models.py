@@ -4,15 +4,24 @@ Tests para pyIol.models
 
 from datetime import datetime
 
+import pytest
+
 from pyIol.models import (
+    ComisionesCPD,
     CotizacionesMasivas,
     CotizacionTitulo,
     DatosTitulo,
     EstadoCuenta,
+    EstimacionMEP,
     InstrumentoPais,
     Portafolio,
     Punta,
+    ResultadoOrden,
     TituloCotizacion,
+    _to_float,
+    _to_int,
+    _to_optional_float,
+    _to_optional_int,
 )
 
 
@@ -308,3 +317,291 @@ class TestPortafolio:
         assert portafolio.pais == "argentina"
         assert portafolio.activos == []
         assert portafolio.total_en_pesos == 0.0
+
+
+# =============================================================================
+# Tests de los helpers de conversión
+# =============================================================================
+
+
+class TestHelpers:
+    """Tests para las funciones auxiliares de conversión numérica."""
+
+    # ── _to_float ──────────────────────────────────────────────────────────
+
+    def test_to_float_from_number(self):
+        assert _to_float(42) == 42.0
+        assert _to_float(42.5) == 42.5
+
+    def test_to_float_from_string(self):
+        assert _to_float("138.02") == 138.02
+        assert _to_float("0.0") == 0.0
+
+    def test_to_float_from_string_with_comma(self):
+        """Las strings pueden venir con coma como separador decimal."""
+        assert _to_float("1.250,50") == 1250.50
+
+    def test_to_float_from_none(self):
+        assert _to_float(None) == 0.0
+
+    def test_to_float_default_override(self):
+        assert _to_float(None, default=-1.0) == -1.0
+
+    # ── _to_int ────────────────────────────────────────────────────────────
+
+    def test_to_int_from_number(self):
+        assert _to_int(42) == 42
+        assert _to_int(42.9) == 42  # truncado
+
+    def test_to_int_from_string(self):
+        assert _to_int("42") == 42
+        assert _to_int("100") == 100
+
+    def test_to_int_from_string_with_comma(self):
+        assert _to_int("1000") == 1000
+        assert _to_int("1,000") == 1000  # coma como separador de miles
+
+    def test_to_int_from_none(self):
+        assert _to_int(None) == 0
+
+    def test_to_int_default_override(self):
+        assert _to_int(None, default=-1) == -1
+
+    # ── _to_optional_float ─────────────────────────────────────────────────
+
+    def test_to_optional_float_from_number(self):
+        assert _to_optional_float(42.5) == 42.5
+
+    def test_to_optional_float_from_string(self):
+        assert _to_optional_float("138.02") == 138.02
+
+    def test_to_optional_float_from_none(self):
+        assert _to_optional_float(None) is None
+
+    # ── _to_optional_int ───────────────────────────────────────────────────
+
+    def test_to_optional_int_from_number(self):
+        assert _to_optional_int(42) == 42
+
+    def test_to_optional_int_from_string(self):
+        assert _to_optional_int("42") == 42
+
+    def test_to_optional_int_from_none(self):
+        assert _to_optional_int(None) is None
+
+
+# =============================================================================
+# Tests del bug #4 — ComisionesCPD.from_dict con strings
+# =============================================================================
+
+
+class TestComisionesCPD:
+    """Tests para el modelo ComisionesCPD (bug #4).
+
+    La API de IOL retorna los valores de comisiones como strings
+    (ej. ``"138.02"`` en lugar de ``138.02``), lo que causaba
+    ``TypeError`` al hacer aritmética en ``from_dict`` y al formatear.
+    """
+
+    def test_from_dict_with_numbers(self):
+        """Caso feliz: API retorna números nativos."""
+        data = {
+            "comision": 138.02,
+            "ivaComision": 28.99,
+            "derechosMercado": 9.33,
+            "ivaDerechosMercado": 1.96,
+        }
+        c = ComisionesCPD.from_dict(data)
+        assert c.comision == 138.02
+        assert c.iva_comision == 28.99
+        assert c.derechos_mercado == 9.33
+        assert c.iva_derechos == 1.96
+        assert c.total_gastos == pytest.approx(178.30)
+
+    def test_from_dict_with_strings(self):
+        """Escenario del bug #4: API retorna strings (ej. '138.02')."""
+        data = {
+            "comision": "138.02",
+            "ivaComision": "28.99",
+            "derechosMercado": "9.33",
+            "ivaDerechosMercado": "1.96",
+        }
+        c = ComisionesCPD.from_dict(data)
+        # Todos deben ser floats, sin TypeError
+        assert isinstance(c.comision, float)
+        assert isinstance(c.total_gastos, float)
+        assert c.comision == 138.02
+        assert c.iva_comision == 28.99
+        assert c.derechos_mercado == 9.33
+        assert c.iva_derechos == 1.96
+        assert c.total_gastos == pytest.approx(178.30)
+
+    def test_from_dict_with_mixed_types(self):
+        """Mezcla de strings y números — la API podría ser inconsistente."""
+        data = {
+            "comision": "138.02",
+            "ivaComision": 28.99,
+            "derechos": "9.33",
+            "ivaDerechosMercado": 1.96,
+        }
+        c = ComisionesCPD.from_dict(data)
+        assert c.total_gastos == pytest.approx(178.30)
+
+    def test_from_dict_total_provided(self):
+        """Si total ya viene en la respuesta, no se recalcula."""
+        data = {
+            "comision": "100",
+            "ivaComision": "21",
+            "derechosMercado": "5",
+            "ivaDerechosMercado": "1",
+            "totalGastos": "200.00",
+        }
+        c = ComisionesCPD.from_dict(data)
+        assert c.total_gastos == 200.00
+
+    def test_from_dict_optional_fields(self):
+        """Campos opcionales: arancel, otros gastos."""
+        data = {
+            "comision": "100",
+            "ivaComision": "21",
+            "derechosMercado": "5",
+            "ivaDerechosMercado": "1",
+            "arancel": "10",
+            "otrosGastos": "5",
+        }
+        c = ComisionesCPD.from_dict(data)
+        assert c.arancel == 10.0
+        assert c.otros_gastos == 5.0
+        assert c.total_gastos == 142.0  # 127 + 10 + 5
+
+    def test_from_dict_empty(self):
+        """Diccionario vacío — defaults seguros, sin TypeError."""
+        c = ComisionesCPD.from_dict({})
+        assert c.comision == 0.0
+        assert c.iva_comision == 0.0
+        assert c.derechos_mercado == 0.0
+        assert c.iva_derechos == 0.0
+        assert c.total_gastos == 0.0
+        assert c.arancel is None
+        assert c.otros_gastos is None
+
+    def test_from_dict_alternative_keys(self):
+        """Fallback keys: ej. 'comisiones' en vez de 'comision'."""
+        data = {
+            "comisiones": "50",
+            "iva": "10.5",
+            "derechos": "5",
+        }
+        c = ComisionesCPD.from_dict(data)
+        assert c.comision == 50.0
+        assert c.iva_comision == 10.5
+        assert c.derechos_mercado == 5.0
+
+    def test_str_representation(self):
+        """__str__ no debe fallar con strings convertidos."""
+        data = {
+            "comision": "138.02",
+            "ivaComision": "28.99",
+            "derechosMercado": "9.33",
+            "ivaDerechosMercado": "1.96",
+        }
+        c = ComisionesCPD.from_dict(data)
+        s = str(c)
+        assert "138.02" in s
+        assert "28.99" in s
+        assert "178.30" in s
+
+
+# =============================================================================
+# Tests de ResultadoOrden — patrón "numero > 0" que explota con strings
+# =============================================================================
+
+
+class TestResultadoOrden:
+    """Tests para el modelo ResultadoOrden.
+
+    ``numero > 0`` lanza TypeError en Python 3 si la API retorna
+    el número de operación como string.
+    """
+
+    def test_from_dict_with_int_numero(self):
+        data = {"numeroOperacion": 12345}
+        r = ResultadoOrden.from_dict(data)
+        assert r.numero_operacion == 12345
+        assert r.ok is True
+
+    def test_from_dict_with_string_numero(self):
+        """Bug análogo a ComisionesCPD: string en vez de int."""
+        data = {"numeroOperacion": "12345"}
+        r = ResultadoOrden.from_dict(data)
+        assert r.numero_operacion == 12345
+        assert r.ok is True
+
+    def test_from_dict_ok_false(self):
+        data = {"ok": False, "mensaje": "Saldo insuficiente"}
+        r = ResultadoOrden.from_dict(data)
+        assert r.ok is False
+        assert r.mensaje == "Saldo insuficiente"
+
+    def test_from_dict_empty(self):
+        r = ResultadoOrden.from_dict({})
+        assert r.numero_operacion == 0
+        assert r.ok is False  # numero=0 → ok=False
+
+
+# =============================================================================
+# Tests de EstimacionMEP — propiedad tipo_cambio_efectivo con strings
+# =============================================================================
+
+
+class TestEstimacionMEP:
+    """Tests para EstimacionMEP.
+
+    La propiedad ``tipo_cambio_efectivo`` hace división sobre
+    ``monto_pesos / monto_dolares``. Si uno de los dos viene como
+    string de la API, lanza TypeError.
+    """
+
+    def test_from_dict_with_numbers(self):
+        data = {
+            "montoPesos": 100000.0,
+            "montoDolares": 80.0,
+            "tipoCambio": 1250.0,
+        }
+        e = EstimacionMEP.from_dict(data)
+        assert e.monto_pesos == 100000.0
+        assert e.monto_dolares == 80.0
+        assert e.tipo_cambio == 1250.0
+        assert e.tipo_cambio_efectivo == 1250.0
+
+    def test_from_dict_with_strings(self):
+        """Strings de la API no deben romper tipo_cambio_efectivo."""
+        data = {
+            "montoPesos": "100000.00",
+            "montoDolares": "80.00",
+            "tipoCambio": "1250.00",
+        }
+        e = EstimacionMEP.from_dict(data)
+        assert isinstance(e.monto_pesos, float)
+        assert isinstance(e.monto_dolares, float)
+        assert e.tipo_cambio_efectivo == 1250.0
+
+    def test_tipo_cambio_efectivo_with_commission(self):
+        """tipo_cambio_efectivo incluye costos en el monto total."""
+        e = EstimacionMEP(
+            monto_pesos=100500.0,
+            monto_dolares=80.0,
+            tipo_cambio=1250.0,
+            comision=500.0,
+        )
+        assert e.tipo_cambio_efectivo == 1256.25
+
+    def test_tipo_cambio_efectivo_zero_dollars(self):
+        """Evita división por cero."""
+        e = EstimacionMEP(
+            monto_pesos=100000.0,
+            monto_dolares=0.0,
+            tipo_cambio=1250.0,
+        )
+        # monto_dolares=0 → no se cumple la condición → retorna tipo_cambio
+        assert e.tipo_cambio_efectivo == 1250.0
