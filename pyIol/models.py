@@ -936,7 +936,9 @@ class Cuenta:
             disponible=_to_float(data.get("disponible")),
             comprometido=_to_float(data.get("comprometido")),
             saldo=_to_float(data.get("saldo")),
-            titulos_valorizados=_to_float(data.get("titulosValorizados")),  # Corregido nombre del campo
+            titulos_valorizados=_to_float(
+                data.get("titulosValorizados")
+            ),  # Corregido nombre del campo
             total=_to_float(data.get("total")),
             margen_descubierto=_to_float(data.get("margenDescubierto")),
             saldos=saldos,
@@ -1147,7 +1149,9 @@ class Portafolio:
         # El país puede venir en el JSON o pasarse como parámetro
         pais_data = data.get("pais", pais)
 
-        return cls(pais=pais_data, activos=activos, total_en_pesos=_to_float(data.get("totalEnPesos")))
+        return cls(
+            pais=pais_data, activos=activos, total_en_pesos=_to_float(data.get("totalEnPesos"))
+        )
 
     def __str__(self) -> str:
         return f"Portafolio {self.pais}: {len(self.activos)} título(s) | Total: ${self.total_en_pesos:,.2f}"
@@ -1524,7 +1528,9 @@ class ChequeCPD:
             fecha_vencimiento=fecha_vencimiento,
             importe=_to_float(data.get("importe") or data.get("monto")),
             tasa=_to_optional_float(data.get("tasa") or data.get("tasaDescuento")),
-            valor_presente=_to_optional_float(data.get("valorPresente") or data.get("precioCompra")),
+            valor_presente=_to_optional_float(
+                data.get("valorPresente") or data.get("precioCompra")
+            ),
             plazo=_to_int(data.get("plazo") or data.get("diasAlVencimiento")),
             segmento=data.get("segmento"),
             estado=data.get("estado"),
@@ -1846,7 +1852,9 @@ class FondoComunInversion:
             valor_cuotaparte=_to_optional_float(
                 data.get("ultimoOperado") or data.get("valorCuotaparte") or data.get("ultimoPrecio")
             ),
-            variacion_diaria=_to_optional_float(data.get("variacion") or data.get("variacionDiaria")),
+            variacion_diaria=_to_optional_float(
+                data.get("variacion") or data.get("variacionDiaria")
+            ),
             variacion_mensual=_to_optional_float(data.get("variacionMensual")),
             variacion_anual=_to_optional_float(data.get("variacionAnual")),
             rescate=data.get("rescate"),
@@ -1953,7 +1961,9 @@ class FCIDetalle(FondoComunInversion):
             valor_cuotaparte=_to_optional_float(
                 data.get("ultimoOperado") or data.get("valorCuotaparte") or data.get("ultimoPrecio")
             ),
-            variacion_diaria=_to_optional_float(data.get("variacion") or data.get("variacionDiaria")),
+            variacion_diaria=_to_optional_float(
+                data.get("variacion") or data.get("variacionDiaria")
+            ),
             variacion_mensual=_to_optional_float(data.get("variacionMensual")),
             variacion_anual=_to_optional_float(data.get("variacionAnual")),
             rescate=data.get("rescate"),
@@ -1975,8 +1985,12 @@ class FCIDetalle(FondoComunInversion):
             disponible_rescate=data.get("disponibleRescate", True),
             fecha_cotizacion=fecha_cotizacion,
             rendimiento_mes=_to_optional_float(data.get("rendimientoMes")),
-            rendimiento_anio=_to_optional_float(data.get("rendimientoAnio") or data.get("rendimientoAño")),
-            rendimiento_12m=_to_optional_float(data.get("rendimiento12m") or data.get("rendimiento12Meses")),
+            rendimiento_anio=_to_optional_float(
+                data.get("rendimientoAnio") or data.get("rendimientoAño")
+            ),
+            rendimiento_12m=_to_optional_float(
+                data.get("rendimiento12m") or data.get("rendimiento12Meses")
+            ),
             duracion=_to_optional_float(data.get("duracion")),
             tir=_to_optional_float(data.get("tir")),
             gastos_administracion=_to_optional_float(data.get("gastosAdministracion")),
@@ -2247,7 +2261,9 @@ class ResultadoMEP:
             numero_operacion_venta=_to_optional_int(data.get("numeroOperacionVenta")),
             mensaje=data.get("mensaje", data.get("message")),
             monto_pesos=_to_optional_float(data.get("montoPesos") or data.get("montoEnPesos")),
-            monto_dolares=_to_optional_float(data.get("montoDolares") or data.get("montoEnDolares")),
+            monto_dolares=_to_optional_float(
+                data.get("montoDolares") or data.get("montoEnDolares")
+            ),
             tipo_cambio=_to_optional_float(data.get("tipoCambio") or data.get("cotizacionMep")),
             fecha_liquidacion=fecha_liquidacion,
         )
@@ -2356,7 +2372,9 @@ class MovimientosAsesor:
 
         return cls(
             movimientos=movimientos,
-            total_registros=_to_int(data.get("totalRegistros") or data.get("total") or len(movimientos)),
+            total_registros=_to_int(
+                data.get("totalRegistros") or data.get("total") or len(movimientos)
+            ),
             pagina_actual=_to_int(data.get("paginaActual") or data.get("pagina")),
             registros_por_pagina=_to_int(data.get("registrosPorPagina") or data.get("porPagina")),
         )
