@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, List, Optional
 
-
 # ---------------------------------------------------------------------------
 # Helpers — conversión segura de valores numéricos desde la API
 # ---------------------------------------------------------------------------
