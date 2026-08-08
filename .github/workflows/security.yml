@@ -47,4 +47,4 @@ jobs:
           pip install ".[dev]" pip-audit
 
       - name: Audit installed dependencies
-        run: pip-audit --strict
+        run: pip-audit --strict -s pyiol-client
