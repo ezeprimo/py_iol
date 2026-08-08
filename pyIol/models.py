@@ -4,7 +4,106 @@ Modelos de datos para las respuestas de la API de Invertir Online
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
+
+
+# ---------------------------------------------------------------------------
+# Helpers — conversión segura de valores numéricos desde la API
+# ---------------------------------------------------------------------------
+
+
+def _parse_number_string(value: str) -> str:
+    """Convierte un string numérico regional a formato float estándar.
+
+    Soporta:
+    - ``"138.02"`` — estándar JSON (punto decimal)
+    - ``"1,234.56"`` — coma como separador de miles, punto decimal
+    - ``"1.250,50"`` — formato argentino/europeo (punto miles, coma decimal)
+    - ``"1,000"`` — coma como separador de miles (3 dígitos a la derecha)
+    - ``"1250,50"`` — coma decimal
+    """
+    if "," in value and "." in value:
+        # Ambos presentes: el que está más a la derecha es el decimal
+        if value.rfind(",") > value.rfind("."):
+            # Formato europeo/argentino: "1.250,50" → 1250.50
+            value = value.replace(".", "").replace(",", ".")
+        else:
+            # Formato inglés: "1,234.56" → 1234.56
+            value = value.replace(",", "")
+    elif "," in value:
+        # Solo coma. Distinguir entre separador de miles y decimal.
+        # Heurística: si la coma aparece una sola vez y tiene exactamente
+        # 3 dígitos a la derecha → separador de miles; sino → decimal.
+        parts = value.rsplit(",", 1)
+        if len(parts[1]) == 3 and parts[1].isdigit():
+            # Probablemente separador de miles: "1,000" → "1000"
+            value = value.replace(",", "")
+        else:
+            # Decimal: "1250,50" → "1250.50"
+            value = value.replace(",", ".")
+    # Si solo hay punto, está en formato estándar — no hacer nada
+    return value
+
+
+def _to_float(value: Any, default: float = 0.0) -> float:
+    """Convierte un valor de API a float de forma segura.
+
+    La API de IOL a veces retorna números como strings (ej. ``"138.02"``).
+    Este helper normaliza: ``None`` → *default*,
+    ``str`` → ``float`` (con soporte regional),
+    ``int``/``float`` → ``float(value)``.
+    """
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        return float(_parse_number_string(value))
+    # dicts, lists, etc. → no son convertibles a float
+    return default
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    """Convierte un valor de API a int de forma segura.
+
+    Idem ``_to_float`` pero retorna ``int``.
+    """
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        return int(float(_parse_number_string(value)))
+    return default
+
+
+def _to_optional_float(value: Any) -> Optional[float]:
+    """Convierte un valor de API a ``Optional[float]``.
+
+    ``None`` → ``None``, resto igual que ``_to_float``.
+    """
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        return float(_parse_number_string(value))
+    # dicts (ej. parking vacío {}), lists, etc. → None
+    return None
+
+
+def _to_optional_int(value: Any) -> Optional[int]:
+    """Convierte un valor de API a ``Optional[int]``.
+
+    ``None`` → ``None``, resto igual que ``_to_int``.
+    """
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        return int(float(_parse_number_string(value)))
+    return None
 
 
 @dataclass
@@ -20,10 +119,10 @@ class Punta:
     def from_dict(cls, data: dict) -> "Punta":
         """Crea una instancia de Punta desde un diccionario"""
         return cls(
-            cantidad_compra=data.get("cantidadCompra", 0),
-            precio_compra=data.get("precioCompra", 0.0),
-            precio_venta=data.get("precioVenta", 0.0),
-            cantidad_venta=data.get("cantidadVenta", 0),
+            cantidad_compra=_to_int(data.get("cantidadCompra")),
+            precio_compra=_to_float(data.get("precioCompra")),
+            precio_venta=_to_float(data.get("precioVenta")),
+            cantidad_venta=_to_int(data.get("cantidadVenta")),
         )
 
 
@@ -69,26 +168,26 @@ class CotizacionTitulo:
         puntas = [Punta.from_dict(punta) for punta in puntas_data]
 
         return cls(
-            ultimo_precio=data.get("ultimoPrecio", 0.0),
-            variacion=data.get("variacion", 0.0),
-            apertura=data.get("apertura", 0.0),
-            maximo=data.get("maximo", 0.0),
-            minimo=data.get("minimo", 0.0),
+            ultimo_precio=_to_float(data.get("ultimoPrecio")),
+            variacion=_to_float(data.get("variacion")),
+            apertura=_to_float(data.get("apertura")),
+            maximo=_to_float(data.get("maximo")),
+            minimo=_to_float(data.get("minimo")),
             fecha_hora=fecha_hora,
             tendencia=data.get("tendencia", ""),
-            cierre_anterior=data.get("cierreAnterior", 0.0),
-            monto_operado=data.get("montoOperado", 0),
-            volumen_nominal=data.get("volumenNominal", 0),
-            precio_promedio=data.get("precioPromedio", 0.0),
+            cierre_anterior=_to_float(data.get("cierreAnterior")),
+            monto_operado=_to_int(data.get("montoOperado")),
+            volumen_nominal=_to_int(data.get("volumenNominal")),
+            precio_promedio=_to_float(data.get("precioPromedio")),
             moneda=data.get("moneda", ""),
-            precio_ajuste=data.get("precioAjuste", 0.0),
-            intereses_abiertos=data.get("interesesAbiertos", 0),
+            precio_ajuste=_to_float(data.get("precioAjuste")),
+            intereses_abiertos=_to_int(data.get("interesesAbiertos")),
             puntas=puntas,
-            cantidad_operaciones=data.get("cantidadOperaciones", 0),
+            cantidad_operaciones=_to_int(data.get("cantidadOperaciones")),
             descripcion_titulo=data.get("descripcionTitulo", ""),
             plazo=data.get("plazo", ""),
-            lamina_minima=data.get("laminaMinima", 1),
-            lote=data.get("lote", 1),
+            lamina_minima=_to_int(data.get("laminaMinima")),
+            lote=_to_int(data.get("lote")),
         )
 
     def __str__(self) -> str:
@@ -187,26 +286,26 @@ class CotizacionOpcion:
             puntas = [Punta.from_dict(punta) for punta in puntas_data]
 
         return cls(
-            ultimo_precio=data.get("ultimoPrecio", 0.0),
-            variacion=data.get("variacion", 0.0),
-            apertura=data.get("apertura", 0.0),
-            maximo=data.get("maximo", 0.0),
-            minimo=data.get("minimo", 0.0),
+            ultimo_precio=_to_float(data.get("ultimoPrecio")),
+            variacion=_to_float(data.get("variacion")),
+            apertura=_to_float(data.get("apertura")),
+            maximo=_to_float(data.get("maximo")),
+            minimo=_to_float(data.get("minimo")),
             fecha_hora=fecha_hora,
             tendencia=data.get("tendencia", ""),
-            cierre_anterior=data.get("cierreAnterior", 0.0),
-            monto_operado=data.get("montoOperado", 0),
-            volumen_nominal=data.get("volumenNominal", 0),
-            precio_promedio=data.get("precioPromedio", 0.0),
-            moneda=data.get("moneda", 0),  # En opciones es int
-            precio_ajuste=data.get("precioAjuste", 0.0),
-            intereses_abiertos=data.get("interesesAbiertos", 0),
+            cierre_anterior=_to_float(data.get("cierreAnterior")),
+            monto_operado=_to_int(data.get("montoOperado")),
+            volumen_nominal=_to_int(data.get("volumenNominal")),
+            precio_promedio=_to_float(data.get("precioPromedio")),
+            moneda=_to_int(data.get("moneda")),  # En opciones es int
+            precio_ajuste=_to_float(data.get("precioAjuste")),
+            intereses_abiertos=_to_int(data.get("interesesAbiertos")),
             puntas=puntas,
-            cantidad_operaciones=data.get("cantidadOperaciones", 0),
+            cantidad_operaciones=_to_int(data.get("cantidadOperaciones")),
             descripcion_titulo=data.get("descripcionTitulo"),  # Puede ser null
             plazo=data.get("plazo"),  # Puede ser null
-            lamina_minima=data.get("laminaMinima", 0),
-            lote=data.get("lote", 0),
+            lamina_minima=_to_int(data.get("laminaMinima")),
+            lote=_to_int(data.get("lote")),
         )
 
     def __str__(self) -> str:
@@ -407,10 +506,10 @@ class PuntasCotizacion:
         if data is None or not isinstance(data, dict):
             return cls(cantidad_compra=0, precio_compra=0.0, precio_venta=0.0, cantidad_venta=0)
         return cls(
-            cantidad_compra=data.get("cantidadCompra", 0),
-            precio_compra=data.get("precioCompra", 0.0),
-            precio_venta=data.get("precioVenta", 0.0),
-            cantidad_venta=data.get("cantidadVenta", 0),
+            cantidad_compra=_to_int(data.get("cantidadCompra")),
+            precio_compra=_to_float(data.get("precioCompra")),
+            precio_venta=_to_float(data.get("precioVenta")),
+            cantidad_venta=_to_int(data.get("cantidadVenta")),
         )
 
 
@@ -467,24 +566,24 @@ class TituloCotizacion:
         return cls(
             simbolo=data.get("simbolo", ""),
             puntas=puntas,
-            ultimo_precio=data.get("ultimoPrecio", 0.0),
-            variacion_porcentual=data.get("variacionPorcentual", 0.0),
-            apertura=data.get("apertura", 0.0),
-            maximo=data.get("maximo", 0.0),
-            minimo=data.get("minimo", 0.0),
-            ultimo_cierre=data.get("ultimoCierre", 0.0),
-            volumen=data.get("volumen", 0),
-            cantidad_operaciones=data.get("cantidadOperaciones", 0),
+            ultimo_precio=_to_float(data.get("ultimoPrecio")),
+            variacion_porcentual=_to_float(data.get("variacionPorcentual")),
+            apertura=_to_float(data.get("apertura")),
+            maximo=_to_float(data.get("maximo")),
+            minimo=_to_float(data.get("minimo")),
+            ultimo_cierre=_to_float(data.get("ultimoCierre")),
+            volumen=_to_int(data.get("volumen")),
+            cantidad_operaciones=_to_int(data.get("cantidadOperaciones")),
             fecha=fecha,
             tipo_opcion=data.get("tipoOpcion"),
-            precio_ejercicio=data.get("precioEjercicio"),
+            precio_ejercicio=_to_optional_float(data.get("precioEjercicio")),
             fecha_vencimiento=fecha_vencimiento,
             mercado=data.get("mercado", ""),
             moneda=data.get("moneda", ""),
             descripcion=data.get("descripcion", ""),
             plazo=data.get("plazo", ""),
-            lamina_minima=data.get("laminaMinima", 1),
-            lote=data.get("lote", 1),
+            lamina_minima=_to_int(data.get("laminaMinima")),
+            lote=_to_int(data.get("lote")),
         )
 
     def __str__(self) -> str:
@@ -603,32 +702,32 @@ class CotizacionDetallada:
         puntas = [Punta.from_dict(punta) for punta in puntas_data]
 
         return cls(
-            ultimo_precio=data.get("ultimoPrecio", 0.0),
-            variacion=data.get("variacion", 0.0),
-            apertura=data.get("apertura", 0.0),
-            maximo=data.get("maximo", 0.0),
-            minimo=data.get("minimo", 0.0),
+            ultimo_precio=_to_float(data.get("ultimoPrecio")),
+            variacion=_to_float(data.get("variacion")),
+            apertura=_to_float(data.get("apertura")),
+            maximo=_to_float(data.get("maximo")),
+            minimo=_to_float(data.get("minimo")),
             fecha_hora=fecha_hora,
             tendencia=data.get("tendencia", ""),
-            cierre_anterior=data.get("cierreAnterior", 0.0),
-            monto_operado=data.get("montoOperado", 0),
-            volumen_nominal=data.get("volumenNominal", 0),
-            precio_promedio=data.get("precioPromedio", 0.0),
+            cierre_anterior=_to_float(data.get("cierreAnterior")),
+            monto_operado=_to_int(data.get("montoOperado")),
+            volumen_nominal=_to_int(data.get("volumenNominal")),
+            precio_promedio=_to_float(data.get("precioPromedio")),
             moneda=data.get("moneda", ""),
-            precio_ajuste=data.get("precioAjuste", 0.0),
-            intereses_abiertos=data.get("interesesAbiertos", 0),
+            precio_ajuste=_to_float(data.get("precioAjuste")),
+            intereses_abiertos=_to_int(data.get("interesesAbiertos")),
             puntas=puntas,
-            cantidad_operaciones=data.get("cantidadOperaciones", 0),
+            cantidad_operaciones=_to_int(data.get("cantidadOperaciones")),
             simbolo=data.get("simbolo", ""),
             pais=data.get("pais", ""),
             mercado=data.get("mercado", ""),
             tipo=data.get("tipo", ""),
             descripcion_titulo=data.get("descripcionTitulo", ""),
             plazo=data.get("plazo", ""),
-            lamina_minima=data.get("laminaMinima", 1),
-            lote=data.get("lote", 1),
-            cantidad_minima=data.get("cantidadMinima", 1),
-            puntos_variacion=data.get("puntosVariacion", 0.0),
+            lamina_minima=_to_int(data.get("laminaMinima")),
+            lote=_to_int(data.get("lote")),
+            cantidad_minima=_to_int(data.get("cantidadMinima")),
+            puntos_variacion=_to_float(data.get("puntosVariacion")),
         )
 
     def __str__(self) -> str:
@@ -799,10 +898,10 @@ class Saldo:
         """Crea una instancia de Saldo desde un diccionario"""
         return cls(
             liquidacion=data.get("liquidacion", ""),
-            saldo=data.get("saldo", 0.0),
-            comprometido=data.get("comprometido", 0.0),
-            disponible=data.get("disponible", 0.0),
-            disponible_operar=data.get("disponibleOperar", 0.0),
+            saldo=_to_float(data.get("saldo")),
+            comprometido=_to_float(data.get("comprometido")),
+            disponible=_to_float(data.get("disponible")),
+            disponible_operar=_to_float(data.get("disponibleOperar")),
         )
 
     def __str__(self) -> str:
@@ -835,12 +934,12 @@ class Cuenta:
             numero=data.get("numero", ""),
             tipo=data.get("tipo", ""),
             moneda=data.get("moneda", ""),
-            disponible=data.get("disponible", 0.0),
-            comprometido=data.get("comprometido", 0.0),
-            saldo=data.get("saldo", 0.0),
-            titulos_valorizados=data.get("titulosValorizados", 0.0),  # Corregido nombre del campo
-            total=data.get("total", 0.0),
-            margen_descubierto=data.get("margenDescubierto", 0.0),
+            disponible=_to_float(data.get("disponible")),
+            comprometido=_to_float(data.get("comprometido")),
+            saldo=_to_float(data.get("saldo")),
+            titulos_valorizados=_to_float(data.get("titulosValorizados")),  # Corregido nombre del campo
+            total=_to_float(data.get("total")),
+            margen_descubierto=_to_float(data.get("margenDescubierto")),
             saldos=saldos,
             estado=data.get("estado", ""),  # Nuevo campo
         )
@@ -866,8 +965,8 @@ class Estadistica:
         """Crea una instancia de Estadistica desde un diccionario"""
         return cls(
             descripcion=data.get("descripcion", ""),
-            cantidad=data.get("cantidad", 0),
-            volumen=data.get("volumen", 0.0),
+            cantidad=_to_int(data.get("cantidad")),
+            volumen=_to_float(data.get("volumen")),
         )
 
     def __str__(self) -> str:
@@ -895,7 +994,7 @@ class EstadoCuenta:
 
         return cls(
             cuentas=cuentas,
-            total_en_pesos=data.get("totalEnPesos", 0.0),
+            total_en_pesos=_to_float(data.get("totalEnPesos")),
             estadisticas=estadisticas,
         )
 
@@ -975,16 +1074,16 @@ class TituloPortafolio:
         titulo = TituloInfo.from_dict(titulo_data)
 
         return cls(
-            cantidad=data.get("cantidad", 0),
-            comprometido=data.get("comprometido", 0),
-            puntos_variacion=data.get("puntosVariacion", 0.0),
-            variacion_diaria=data.get("variacionDiaria", 0.0),
-            ultimo_precio=data.get("ultimoPrecio", 0.0),
-            ppc=data.get("ppc", 0.0),
-            ganancia_porcentaje=data.get("gananciaPorcentaje", 0.0),
-            ganancia_dinero=data.get("gananciaDinero", 0.0),
-            valorizado=data.get("valorizado", 0.0),
-            parking=data.get("parking"),
+            cantidad=_to_int(data.get("cantidad")),
+            comprometido=_to_int(data.get("comprometido")),
+            puntos_variacion=_to_float(data.get("puntosVariacion")),
+            variacion_diaria=_to_float(data.get("variacionDiaria")),
+            ultimo_precio=_to_float(data.get("ultimoPrecio")),
+            ppc=_to_float(data.get("ppc")),
+            ganancia_porcentaje=_to_float(data.get("gananciaPorcentaje")),
+            ganancia_dinero=_to_float(data.get("gananciaDinero")),
+            valorizado=_to_float(data.get("valorizado")),
+            parking=_to_optional_float(data.get("parking")),
             titulo=titulo,
         )
 
@@ -1049,7 +1148,7 @@ class Portafolio:
         # El país puede venir en el JSON o pasarse como parámetro
         pais_data = data.get("pais", pais)
 
-        return cls(pais=pais_data, activos=activos, total_en_pesos=data.get("totalEnPesos", 0.0))
+        return cls(pais=pais_data, activos=activos, total_en_pesos=_to_float(data.get("totalEnPesos")))
 
     def __str__(self) -> str:
         return f"Portafolio {self.pais}: {len(self.activos)} título(s) | Total: ${self.total_en_pesos:,.2f}"
@@ -1131,18 +1230,18 @@ class Operacion:
                 pass
 
         return cls(
-            numero=data.get("numero", 0),
+            numero=_to_int(data.get("numero")),
             fecha_orden=fecha_orden,
             tipo=data.get("tipo", ""),
             estado=data.get("estado", ""),
             mercado=data.get("mercado", ""),
             simbolo=data.get("simbolo", ""),
-            cantidad=data.get("cantidad"),
-            cantidad_operada=data.get("cantidadOperada"),
-            precio=data.get("precio"),
-            precio_operado=data.get("precioOperado"),
-            monto=data.get("monto"),
-            monto_operado=data.get("montoOperado"),
+            cantidad=_to_optional_int(data.get("cantidad")),
+            cantidad_operada=_to_optional_int(data.get("cantidadOperada")),
+            precio=_to_optional_float(data.get("precio")),
+            precio_operado=_to_optional_float(data.get("precioOperado")),
+            monto=_to_optional_float(data.get("monto")),
+            monto_operado=_to_optional_float(data.get("montoOperado")),
             modalidad=data.get("modalidad", ""),
             plazo=data.get("plazo", ""),
             validez=validez,
@@ -1229,27 +1328,27 @@ class OperacionDetalle(Operacion):
                 pass
 
         return cls(
-            numero=data.get("numero", 0),
+            numero=_to_int(data.get("numero")),
             fecha_orden=fecha_orden,
             tipo=data.get("tipo", ""),
             estado=data.get("estado", ""),
             mercado=data.get("mercado", ""),
             simbolo=data.get("simbolo", ""),
-            cantidad=data.get("cantidad", 0),
-            cantidad_operada=data.get("cantidadOperada", 0),
-            precio=data.get("precio", 0.0),
-            precio_operado=data.get("precioOperado"),
-            monto=data.get("monto", 0.0),
-            monto_operado=data.get("montoOperado"),
+            cantidad=_to_optional_int(data.get("cantidad")),
+            cantidad_operada=_to_optional_int(data.get("cantidadOperada")),
+            precio=_to_optional_float(data.get("precio")),
+            precio_operado=_to_optional_float(data.get("precioOperado")),
+            monto=_to_optional_float(data.get("monto")),
+            monto_operado=_to_optional_float(data.get("montoOperado")),
             modalidad=data.get("modalidad", ""),
             plazo=data.get("plazo", ""),
             validez=validez,
             fecha_operada=fecha_operada,
-            precio_promedio=data.get("precioPromedio", 0.0),
-            arancel=data.get("arancel", 0.0),
-            iva_arancel=data.get("ivaArancel", 0.0),
-            derechos_mercado=data.get("derechosMercado", 0.0),
-            iva_derechos_mercado=data.get("ivaDerechosMercado", 0.0),
+            precio_promedio=_to_float(data.get("precioPromedio")),
+            arancel=_to_float(data.get("arancel")),
+            iva_arancel=_to_float(data.get("ivaArancel")),
+            derechos_mercado=_to_float(data.get("derechosMercado")),
+            iva_derechos_mercado=_to_float(data.get("ivaDerechosMercado")),
             descripcion=data.get("descripcion", ""),
         )
 
@@ -1324,7 +1423,7 @@ class ResultadoOrden:
         """Crea una instancia de ResultadoOrden desde un diccionario"""
         # La API puede devolver diferentes formatos
         # Intentamos manejar los más comunes
-        numero = data.get("numeroOperacion", data.get("numero", 0))
+        numero = _to_int(data.get("numeroOperacion") or data.get("numero"))
         ok = data.get("ok", True) if "ok" in data else (numero > 0)
         mensaje = data.get("mensaje", data.get("message", None))
 
@@ -1424,10 +1523,10 @@ class ChequeCPD:
             cuit_librador=data.get("cuitLibrador", data.get("cuit")),
             fecha_pago=fecha_pago,
             fecha_vencimiento=fecha_vencimiento,
-            importe=data.get("importe", data.get("monto", 0.0)),
-            tasa=data.get("tasa", data.get("tasaDescuento")),
-            valor_presente=data.get("valorPresente", data.get("precioCompra")),
-            plazo=data.get("plazo", data.get("diasAlVencimiento", 0)),
+            importe=_to_float(data.get("importe") or data.get("monto")),
+            tasa=_to_optional_float(data.get("tasa") or data.get("tasaDescuento")),
+            valor_presente=_to_optional_float(data.get("valorPresente") or data.get("precioCompra")),
+            plazo=_to_int(data.get("plazo") or data.get("diasAlVencimiento")),
             segmento=data.get("segmento"),
             estado=data.get("estado"),
             entidad_avaladora=data.get("entidadAvaladora", data.get("avalista")),
@@ -1490,20 +1589,20 @@ class ComisionesCPD:
     @classmethod
     def from_dict(cls, data: dict) -> "ComisionesCPD":
         """Crea una instancia de ComisionesCPD desde un diccionario"""
-        comision = data.get("comision", data.get("comisiones", 0.0))
-        iva_comision = data.get("ivaComision", data.get("iva", 0.0))
-        derechos = data.get("derechosMercado", data.get("derechos", 0.0))
-        iva_derechos = data.get("ivaDerechos", data.get("ivaDerechosMercado", 0.0))
-        arancel = data.get("arancel")
-        otros = data.get("otrosGastos", data.get("otros"))
+        comision = _to_float(data.get("comision") or data.get("comisiones"))
+        iva_comision = _to_float(data.get("ivaComision") or data.get("iva"))
+        derechos = _to_float(data.get("derechosMercado") or data.get("derechos"))
+        iva_derechos = _to_float(data.get("ivaDerechos") or data.get("ivaDerechosMercado"))
+        arancel = _to_optional_float(data.get("arancel"))
+        otros = _to_optional_float(data.get("otrosGastos") or data.get("otros"))
 
         # Calcular total si no viene
-        total = data.get("totalGastos", data.get("total"))
+        total = _to_optional_float(data.get("totalGastos") or data.get("total"))
         if total is None:
             total = comision + iva_comision + derechos + iva_derechos
-            if arancel:
+            if arancel is not None:
                 total += arancel
-            if otros:
+            if otros is not None:
                 total += otros
 
         return cls(
@@ -1514,10 +1613,10 @@ class ComisionesCPD:
             arancel=arancel,
             otros_gastos=otros,
             total_gastos=total,
-            monto_neto=data.get("montoNeto"),
-            importe=data.get("importe"),
-            plazo=data.get("plazo"),
-            tasa=data.get("tasa"),
+            monto_neto=_to_optional_float(data.get("montoNeto")),
+            importe=_to_optional_float(data.get("importe")),
+            plazo=_to_optional_int(data.get("plazo")),
+            tasa=_to_optional_float(data.get("tasa")),
         )
 
     def __str__(self) -> str:
@@ -1584,7 +1683,7 @@ class ResultadoCPD:
             except (ValueError, AttributeError):
                 pass
 
-        numero = data.get("numeroOperacion", data.get("numero", 0))
+        numero = _to_int(data.get("numeroOperacion") or data.get("numero"))
         ok = data.get("ok", True) if "ok" in data else (numero > 0)
 
         return cls(
@@ -1592,8 +1691,8 @@ class ResultadoCPD:
             numero_operacion=numero if numero > 0 else None,
             mensaje=data.get("mensaje", data.get("message")),
             numero_cheque=data.get("numeroCheque"),
-            importe=data.get("importe"),
-            precio=data.get("precio"),
+            importe=_to_optional_float(data.get("importe")),
+            precio=_to_optional_float(data.get("precio")),
             fecha_liquidacion=fecha_liquidacion,
         )
 
@@ -1687,7 +1786,7 @@ class AdministradoraFCI:
     def from_dict(cls, data: dict) -> "AdministradoraFCI":
         """Crea una instancia de AdministradoraFCI desde un diccionario"""
         return cls(
-            id=data.get("id", 0),
+            id=_to_int(data.get("id")),
             nombre=data.get("nombre", data.get("administradora", "")),
             descripcion=data.get("descripcion"),
         )
@@ -1745,15 +1844,15 @@ class FondoComunInversion:
             tipo_fondo=data.get("tipoFondo", data.get("tipo", "")),
             moneda=data.get("moneda", ""),
             horizonte=data.get("horizonteInversion", data.get("horizonte")),
-            valor_cuotaparte=data.get(
-                "ultimoOperado", data.get("valorCuotaparte", data.get("ultimoPrecio"))
+            valor_cuotaparte=_to_optional_float(
+                data.get("ultimoOperado") or data.get("valorCuotaparte") or data.get("ultimoPrecio")
             ),
-            variacion_diaria=data.get("variacion", data.get("variacionDiaria")),
-            variacion_mensual=data.get("variacionMensual"),
-            variacion_anual=data.get("variacionAnual"),
+            variacion_diaria=_to_optional_float(data.get("variacion") or data.get("variacionDiaria")),
+            variacion_mensual=_to_optional_float(data.get("variacionMensual")),
+            variacion_anual=_to_optional_float(data.get("variacionAnual")),
             rescate=data.get("rescate"),
             perfil_inversor=data.get("perfilInversor", data.get("perfilRiesgo")),
-            monto_minimo=data.get("montoMinimo"),
+            monto_minimo=_to_optional_float(data.get("montoMinimo")),
             invierte=data.get("invierte"),
             administradora=data.get("tipoAdministradoraTituloFCI", data.get("administradora")),
             aviso_horario_ejecucion=data.get("avisoHorarioEjecucion"),
@@ -1765,7 +1864,7 @@ class FondoComunInversion:
             mercado=data.get("mercado"),
             tipo=data.get("tipo"),
             plazo=data.get("plazo"),
-            patrimonio=data.get("patrimonio"),
+            patrimonio=_to_optional_float(data.get("patrimonio")),
             disponible_suscripcion=data.get("disponibleSuscripcion", True),
             disponible_rescate=data.get("disponibleRescate", True),
         )
@@ -1852,15 +1951,15 @@ class FCIDetalle(FondoComunInversion):
             tipo_fondo=data.get("tipoFondo", data.get("tipo", "")),
             moneda=data.get("moneda", ""),
             horizonte=data.get("horizonteInversion", data.get("horizonte")),
-            valor_cuotaparte=data.get(
-                "ultimoOperado", data.get("valorCuotaparte", data.get("ultimoPrecio"))
+            valor_cuotaparte=_to_optional_float(
+                data.get("ultimoOperado") or data.get("valorCuotaparte") or data.get("ultimoPrecio")
             ),
-            variacion_diaria=data.get("variacion", data.get("variacionDiaria")),
-            variacion_mensual=data.get("variacionMensual"),
-            variacion_anual=data.get("variacionAnual"),
+            variacion_diaria=_to_optional_float(data.get("variacion") or data.get("variacionDiaria")),
+            variacion_mensual=_to_optional_float(data.get("variacionMensual")),
+            variacion_anual=_to_optional_float(data.get("variacionAnual")),
             rescate=data.get("rescate"),
             perfil_inversor=data.get("perfilInversor", data.get("perfilRiesgo")),
-            monto_minimo=data.get("montoMinimo"),
+            monto_minimo=_to_optional_float(data.get("montoMinimo")),
             invierte=data.get("invierte"),
             administradora=data.get("tipoAdministradoraTituloFCI", data.get("administradora")),
             aviso_horario_ejecucion=data.get("avisoHorarioEjecucion"),
@@ -1872,16 +1971,16 @@ class FCIDetalle(FondoComunInversion):
             mercado=data.get("mercado"),
             tipo=data.get("tipo"),
             plazo=data.get("plazo"),
-            patrimonio=data.get("patrimonio"),
+            patrimonio=_to_optional_float(data.get("patrimonio")),
             disponible_suscripcion=data.get("disponibleSuscripcion", True),
             disponible_rescate=data.get("disponibleRescate", True),
             fecha_cotizacion=fecha_cotizacion,
-            rendimiento_mes=data.get("rendimientoMes"),
-            rendimiento_anio=data.get("rendimientoAnio", data.get("rendimientoAño")),
-            rendimiento_12m=data.get("rendimiento12m", data.get("rendimiento12Meses")),
-            duracion=data.get("duracion"),
-            tir=data.get("tir"),
-            gastos_administracion=data.get("gastosAdministracion"),
+            rendimiento_mes=_to_optional_float(data.get("rendimientoMes")),
+            rendimiento_anio=_to_optional_float(data.get("rendimientoAnio") or data.get("rendimientoAño")),
+            rendimiento_12m=_to_optional_float(data.get("rendimiento12m") or data.get("rendimiento12Meses")),
+            duracion=_to_optional_float(data.get("duracion")),
+            tir=_to_optional_float(data.get("tir")),
+            gastos_administracion=_to_optional_float(data.get("gastosAdministracion")),
             reglamento_url=data.get("reglamentoUrl"),
         )
 
@@ -1951,15 +2050,15 @@ class ResultadoFCI:
             except (ValueError, AttributeError):
                 pass
 
-        numero = data.get("numeroOperacion", data.get("numero", 0))
+        numero = _to_int(data.get("numeroOperacion") or data.get("numero"))
         ok = data.get("ok", True) if "ok" in data else (numero > 0)
 
         return cls(
             ok=ok,
             numero_operacion=numero if numero > 0 else None,
             mensaje=data.get("mensaje", data.get("message")),
-            cuotapartes_estimadas=data.get("cuotapartesEstimadas"),
-            monto_estimado=data.get("montoEstimado"),
+            cuotapartes_estimadas=_to_optional_float(data.get("cuotapartesEstimadas")),
+            monto_estimado=_to_optional_float(data.get("montoEstimado")),
             fecha_liquidacion=fecha_liquidacion,
         )
 
@@ -2002,16 +2101,16 @@ class EstimacionMEP:
     def from_dict(cls, data: dict) -> "EstimacionMEP":
         """Crea una instancia de EstimacionMEP desde un diccionario"""
         return cls(
-            monto_pesos=data.get("montoPesos", data.get("montoEnPesos", 0.0)),
-            monto_dolares=data.get("montoDolares", data.get("montoEnDolares", 0.0)),
-            tipo_cambio=data.get("tipoCambio", data.get("cotizacionMep", 0.0)),
-            comision=data.get("comision", data.get("comisiones")),
-            impuestos=data.get("impuestos"),
-            costo_total=data.get("costoTotal", data.get("total")),
+            monto_pesos=_to_float(data.get("montoPesos") or data.get("montoEnPesos")),
+            monto_dolares=_to_float(data.get("montoDolares") or data.get("montoEnDolares")),
+            tipo_cambio=_to_float(data.get("tipoCambio") or data.get("cotizacionMep")),
+            comision=_to_optional_float(data.get("comision") or data.get("comisiones")),
+            impuestos=_to_optional_float(data.get("impuestos")),
+            costo_total=_to_optional_float(data.get("costoTotal") or data.get("total")),
             titulo_utilizado=data.get("tituloUtilizado", data.get("simbolo")),
-            cantidad_titulos=data.get("cantidadTitulos", data.get("cantidad")),
-            precio_compra=data.get("precioCompra"),
-            precio_venta=data.get("precioVenta"),
+            cantidad_titulos=_to_optional_int(data.get("cantidadTitulos") or data.get("cantidad")),
+            precio_compra=_to_optional_float(data.get("precioCompra")),
+            precio_venta=_to_optional_float(data.get("precioVenta")),
         )
 
     def __str__(self) -> str:
@@ -2052,11 +2151,11 @@ class ParametrosMEP:
     def from_dict(cls, data: dict) -> "ParametrosMEP":
         """Crea una instancia de ParametrosMEP desde un diccionario"""
         return cls(
-            id_tipo_operatoria=data.get("idTipoOperatoria", data.get("id", 0)),
+            id_tipo_operatoria=_to_int(data.get("idTipoOperatoria") or data.get("id")),
             nombre=data.get("nombre", ""),
             descripcion=data.get("descripcion"),
-            monto_minimo=data.get("montoMinimo"),
-            monto_maximo=data.get("montoMaximo"),
+            monto_minimo=_to_optional_float(data.get("montoMinimo")),
+            monto_maximo=_to_optional_float(data.get("montoMaximo")),
             horario_inicio=data.get("horarioInicio", data.get("horaInicio")),
             horario_fin=data.get("horarioFin", data.get("horaFin")),
             disponible=data.get("disponible", data.get("habilitado", True)),
@@ -2095,7 +2194,7 @@ class ValidacionMEP:
         return cls(
             valido=valido,
             mensaje=data.get("mensaje", data.get("message")),
-            monto_ajustado=data.get("montoAjustado"),
+            monto_ajustado=_to_optional_float(data.get("montoAjustado")),
             error_codigo=data.get("errorCodigo", data.get("codigoError")),
         )
 
@@ -2139,18 +2238,18 @@ class ResultadoMEP:
             except (ValueError, AttributeError):
                 pass
 
-        numero = data.get("numeroOperacion", data.get("numero", 0))
+        numero = _to_int(data.get("numeroOperacion") or data.get("numero"))
         ok = data.get("ok", True) if "ok" in data else (numero > 0)
 
         return cls(
             ok=ok,
             numero_operacion=numero if numero > 0 else None,
-            numero_operacion_compra=data.get("numeroOperacionCompra"),
-            numero_operacion_venta=data.get("numeroOperacionVenta"),
+            numero_operacion_compra=_to_optional_int(data.get("numeroOperacionCompra")),
+            numero_operacion_venta=_to_optional_int(data.get("numeroOperacionVenta")),
             mensaje=data.get("mensaje", data.get("message")),
-            monto_pesos=data.get("montoPesos", data.get("montoEnPesos")),
-            monto_dolares=data.get("montoDolares", data.get("montoEnDolares")),
-            tipo_cambio=data.get("tipoCambio", data.get("cotizacionMep")),
+            monto_pesos=_to_optional_float(data.get("montoPesos") or data.get("montoEnPesos")),
+            monto_dolares=_to_optional_float(data.get("montoDolares") or data.get("montoEnDolares")),
+            tipo_cambio=_to_optional_float(data.get("tipoCambio") or data.get("cotizacionMep")),
             fecha_liquidacion=fecha_liquidacion,
         )
 
@@ -2215,12 +2314,12 @@ class MovimientoCliente:
             tipo_movimiento=data.get("tipoMovimiento", data.get("tipo", "")),
             descripcion=data.get("descripcion", ""),
             simbolo=data.get("simbolo"),
-            cantidad=data.get("cantidad"),
-            precio=data.get("precio"),
-            monto=data.get("monto", data.get("importe", 0.0)),
+            cantidad=_to_optional_int(data.get("cantidad")),
+            precio=_to_optional_float(data.get("precio")),
+            monto=_to_float(data.get("monto") or data.get("importe")),
             moneda=data.get("moneda", "ARS"),
-            saldo=data.get("saldo", data.get("saldoFinal")),
-            numero_operacion=data.get("numeroOperacion", data.get("numero")),
+            saldo=_to_optional_float(data.get("saldo") or data.get("saldoFinal")),
+            numero_operacion=_to_optional_int(data.get("numeroOperacion") or data.get("numero")),
             id_cliente=data.get("idCliente", data.get("idClienteAsesorado")),
             nombre_cliente=data.get("nombreCliente", data.get("cliente")),
         )
@@ -2258,9 +2357,9 @@ class MovimientosAsesor:
 
         return cls(
             movimientos=movimientos,
-            total_registros=data.get("totalRegistros", data.get("total", len(movimientos))),
-            pagina_actual=data.get("paginaActual", data.get("pagina", 1)),
-            registros_por_pagina=data.get("registrosPorPagina", data.get("porPagina", 50)),
+            total_registros=_to_int(data.get("totalRegistros") or data.get("total") or len(movimientos)),
+            pagina_actual=_to_int(data.get("paginaActual") or data.get("pagina")),
+            registros_por_pagina=_to_int(data.get("registrosPorPagina") or data.get("porPagina")),
         )
 
     def __str__(self) -> str:
@@ -2279,9 +2378,9 @@ class OpcionRespuesta:
     def from_dict(cls, data: dict) -> "OpcionRespuesta":
         """Crea una instancia de OpcionRespuesta desde un diccionario"""
         return cls(
-            id=data.get("id", 0),
+            id=_to_int(data.get("id")),
             texto=data.get("texto", data.get("descripcion", "")),
-            valor=data.get("valor", data.get("puntaje")),
+            valor=_to_optional_int(data.get("valor") or data.get("puntaje")),
         )
 
     def __str__(self) -> str:
@@ -2308,8 +2407,8 @@ class PreguntaTestInversor:
         opciones = [OpcionRespuesta.from_dict(o) for o in opciones_data] if opciones_data else None
 
         return cls(
-            id=data.get("id", 0),
-            numero=data.get("numero", data.get("orden", 0)),
+            id=_to_int(data.get("id")),
+            numero=_to_int(data.get("numero") or data.get("orden")),
             texto=data.get("texto", data.get("pregunta", "")),
             categoria=data.get("categoria", data.get("seccion")),
             opciones=opciones,
@@ -2347,7 +2446,7 @@ class TestInversor:
             preguntas=preguntas,
             titulo=data.get("titulo"),
             descripcion=data.get("descripcion"),
-            cantidad_preguntas=data.get("cantidadPreguntas", len(preguntas)),
+            cantidad_preguntas=_to_int(data.get("cantidadPreguntas") or len(preguntas)),
         )
 
     def __str__(self) -> str:
@@ -2412,8 +2511,8 @@ class PerfilInversor:
         return cls(
             perfil=data.get("perfil", data.get("perfilInversor", "")),
             descripcion=data.get("descripcion", data.get("descripcionPerfil")),
-            puntaje=data.get("puntaje", data.get("puntos")),
-            puntaje_maximo=data.get("puntajeMaximo", data.get("puntosMaximos")),
+            puntaje=_to_optional_int(data.get("puntaje") or data.get("puntos")),
+            puntaje_maximo=_to_optional_int(data.get("puntajeMaximo") or data.get("puntosMaximos")),
             recomendaciones=recomendaciones if recomendaciones else None,
             guardado=data.get("guardado", False),
             id_cliente=data.get("idCliente", data.get("idClienteAsesorado")),
@@ -2459,7 +2558,7 @@ class ResultadoOperacionAsesor:
     @classmethod
     def from_dict(cls, data: dict) -> "ResultadoOperacionAsesor":
         """Crea una instancia de ResultadoOperacionAsesor desde un diccionario"""
-        numero = data.get("numeroOperacion", data.get("numero", 0))
+        numero = _to_int(data.get("numeroOperacion") or data.get("numero"))
         ok = data.get("ok", True) if "ok" in data else (numero > 0)
 
         return cls(
@@ -2468,8 +2567,8 @@ class ResultadoOperacionAsesor:
             mensaje=data.get("mensaje", data.get("message")),
             id_cliente=data.get("idCliente", data.get("idClienteAsesorado")),
             simbolo=data.get("simbolo"),
-            cantidad=data.get("cantidad"),
-            precio=data.get("precio"),
+            cantidad=_to_optional_int(data.get("cantidad")),
+            precio=_to_optional_float(data.get("precio")),
         )
 
     def __str__(self) -> str:
