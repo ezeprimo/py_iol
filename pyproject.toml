@@ -56,7 +56,7 @@ dev = [
 Homepage = "https://github.com/ezeprimo/py_iol"
 Repository = "https://github.com/ezeprimo/py_iol"
 "Bug Tracker" = "https://github.com/ezeprimo/py_iol/issues"
-Documentation = "https://github.com/ezeprimo/py_iol/tree/master/doc"
+Documentation = "https://github.com/ezeprimo/py_iol/tree/main/doc"
 
 [tool.hatch.build.targets.sdist]
 exclude = [
