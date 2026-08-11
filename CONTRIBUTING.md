@@ -126,7 +126,7 @@ git commit -m "Bump version to 0.2.0-beta.1"
 git tag v0.2.0-beta.1
 
 # 4. Push
-git push origin master --tags
+git push origin main --tags
 ```
 
 Esto publicara solo en TestPyPI para pruebas.
@@ -147,7 +147,7 @@ git commit -m "Release version 0.2.0"
 git tag v0.2.0
 
 # 4. Push
-git push origin master --tags
+git push origin main --tags
 ```
 
 Esto publicara en TestPyPI Y en PyPI.
@@ -216,7 +216,7 @@ El proyecto usa GitHub Actions para integracion continua y publicacion.
 
 | Workflow | Trigger | Descripcion |
 |----------|---------|-------------|
-| `ci.yml` | Push a master, PRs | Build y lint con ruff |
+| `ci.yml` | Push a main, PRs | Build y lint con ruff |
 | `publish.yml` | Push de tags `v*` | Publicacion a PyPI/TestPyPI |
 
 ### CI (`ci.yml`)
@@ -316,7 +316,7 @@ git commit -am "Bump version to 0.2.0"
 git tag v0.2.0
 
 # 4. Push commits y tag
-git push origin master --tags
+git push origin main --tags
 ```
 
 ### Como eliminar un tag erroneo
