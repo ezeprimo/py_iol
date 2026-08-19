@@ -1608,9 +1608,7 @@ class ComisionesCPD:
         """Crea una instancia de ComisionesCPD desde un diccionario"""
         comision = _to_float(_first_present(data, "comision", "comisiones"))
         iva_comision = _to_float(_first_present(data, "ivaComision", "iva"))
-        derechos = _to_float(
-            _first_present(data, "derechoMercado", "derechosMercado", "derechos")
-        )
+        derechos = _to_float(_first_present(data, "derechoMercado", "derechosMercado", "derechos"))
         iva_derechos = _to_float(
             _first_present(data, "ivaDerechoMercado", "ivaDerechosMercado", "ivaDerechos")
         )
@@ -2165,7 +2163,9 @@ class EstimacionMEP:
             derechos = _to_optional_float(
                 _first_present(data, "derechoMercadoVenta", "derechoMercado")
             )
-            costo_total = _to_optional_float(_first_present(data, "montoPesos", "costoTotal", "total"))
+            costo_total = _to_optional_float(
+                _first_present(data, "montoPesos", "costoTotal", "total")
+            )
         impuestos = None
         if iva is not None or derechos is not None:
             impuestos = (iva or 0.0) + (derechos or 0.0)
