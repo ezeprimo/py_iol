@@ -14,10 +14,12 @@ from pyIol.models import (
     EstadoCuenta,
     EstimacionMEP,
     InstrumentoPais,
+    ParametrosMEP,
     Portafolio,
     Punta,
     ResultadoOrden,
     TituloCotizacion,
+    ValidacionMEP,
     _to_float,
     _to_int,
     _to_optional_float,
@@ -605,3 +607,141 @@ class TestEstimacionMEP:
         )
         # monto_dolares=0 → no se cumple la condición → retorna tipo_cambio
         assert e.tipo_cambio_efectivo == 1250.0
+
+
+# =============================================================================
+# Tests de regresión — payloads reales capturados de la API (2026-08-18)
+# =============================================================================
+# Los mapeos de MEP y CPD no coincidían con las claves reales: los comandos
+# cliol devolvían exit 0 con campos null/0 (issue cliol #8).
+
+
+class TestEstimacionMEPRealPayload:
+    """Payloads reales de /OperatoriaSimplificada/MontosEstimados y VentaMepSimple."""
+
+    BUY = {
+        "montoDolar": 69.399,
+        "montoBrutoPesos": 100000.0,
+        "montoNetoPesos": 99490.0,
+        "comisionCompra": 500.0,
+        "comisionVenta": 0.349,
+        "comisionCompraIVA": 0.0,
+        "comisionVentaIVA": 0.0,
+        "derechoMercadoCompra": 10.0,
+        "derechoMercadoVenta": 10.514,
+    }
+
+    SELL = {
+        "montoPesos": 149982.321,
+        "montoBrutoDolar": 100.0,
+        "montoNetoDolar": 99.5,
+        "comisionCompra": 0.5,
+        "comisionVenta": 753.832,
+        "comisionCompraIVA": 0.0,
+        "comisionVentaIVA": 0.0,
+        "derechoMercadoCompra": 15.15,
+        "derechoMercadoVenta": 15.075,
+    }
+
+    def test_buy_payload_maps_all_fields(self):
+        e = EstimacionMEP.from_dict(self.BUY)
+        assert e.monto_pesos == 100000.0
+        assert e.monto_dolares == 69.399
+        assert e.tipo_cambio == pytest.approx(100000.0 / 69.399)
+        assert e.comision == 500.0  # pierna de compra
+        assert e.impuestos == pytest.approx(10.0)  # IVA 0 + derechos 10
+        assert e.costo_total == 99490.0  # bruto - comisión - derechos
+        assert e.titulo_utilizado is None
+
+    def test_sell_payload_maps_all_fields(self):
+        e = EstimacionMEP.from_dict(self.SELL)
+        assert e.monto_pesos == 149982.321
+        assert e.monto_dolares == 100.0
+        assert e.tipo_cambio == pytest.approx(149982.321 / 100.0)
+        assert e.comision == 753.832  # pierna de venta
+        assert e.impuestos == pytest.approx(15.075)
+        assert e.costo_total == 149982.321
+
+
+class TestParametrosMEPRealPayload:
+    """Payload real de /OperatoriaSimplificada/1/Parametros."""
+
+    PAYLOAD = {
+        "horarioApertura": "1900-01-01T00:10:00",
+        "horarioCierre": "1900-01-01T23:49:59",
+        "esHorarioValido": True,
+        "idTipoOperacion": "mep",
+        "idProducto": "mep_Automatico",
+        "nombre": "Compra Dólar MEP Simple",
+        "descripcion": "Compra Dólar MEP Simple",
+        "simboloTituloCompra": "AL30",
+        "simboloTituloVenta": "AL30D",
+        "montoLimiteMinimo": 5000.0,
+        "montoLimiteMaximo": 600000000.0,
+        "monedaMontoLimite": 1,
+        "tiempoExpiracionPreOrden": 60,
+        "idPlazoOperatoriaCompra": 3,
+        "idPlazoOperatoriaVenta": 3,
+        "fechaConcertacionDolarMep": "2026-08-19T22:54:53.08",
+    }
+
+    def test_payload_maps_all_fields(self):
+        p = ParametrosMEP.from_dict(self.PAYLOAD)
+        assert p.id_tipo_operatoria == "mep"
+        assert p.nombre == "Compra Dólar MEP Simple"
+        assert p.monto_minimo == 5000.0
+        assert p.monto_maximo == 600000000.0
+        assert p.horario_inicio == "1900-01-01T00:10:00"
+        assert p.horario_fin == "1900-01-01T23:49:59"
+        assert p.disponible is True
+        assert p.titulo_default == "AL30"
+        assert p.plazo == 3
+
+
+class TestValidacionMEPRealPayload:
+    """Payload real de /OperatoriaSimplificada/Validar (rechazo por saldo)."""
+
+    PAYLOAD = {
+        "ok": False,
+        "messages": [
+            {"title": "", "description": "El monto ingresado excede tu saldo disponible."}
+        ],
+    }
+
+    def test_payload_maps_messages(self):
+        v = ValidacionMEP.from_dict(self.PAYLOAD)
+        assert v.valido is False
+        assert v.mensaje == "El monto ingresado excede tu saldo disponible."
+        assert v.monto_ajustado is None
+        assert v.error_codigo is None
+
+    def test_multiple_messages_joined(self):
+        v = ValidacionMEP.from_dict(
+            {"ok": False, "messages": [{"description": "A"}, {"description": "B"}]}
+        )
+        assert v.mensaje == "A; B"
+
+
+class TestComisionesCPDRealPayload:
+    """Payload real de /operar/CPD/Comisiones — strings con coma de miles."""
+
+    PAYLOAD = {
+        "moneda": "AR$",
+        "montoInversion": "96,395.09",
+        "comision": "147.19",
+        "derechoMercado": "9.95",
+        "ivaComision": "30.91",
+        "ivaDerechoMercado": "2.09",
+        "montoTotalInversion": "96,585.22",
+    }
+
+    def test_payload_maps_all_fields(self):
+        c = ComisionesCPD.from_dict(self.PAYLOAD)
+        assert c.comision == pytest.approx(147.19)
+        assert c.iva_comision == pytest.approx(30.91)
+        assert c.derechos_mercado == pytest.approx(9.95)
+        assert c.iva_derechos == pytest.approx(2.09)
+        assert c.total_gastos == pytest.approx(190.14)  # 147.19+30.91+9.95+2.09
+        assert c.monto_neto == pytest.approx(96395.09)  # montoInversion "96,395.09"
+        assert c.arancel is None  # la API no los devuelve: null legítimo
+        assert c.otros_gastos is None
