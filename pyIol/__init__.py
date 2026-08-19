@@ -75,7 +75,7 @@ from .models import (
     ValidacionMEP,
 )
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __all__ = [
     # Cliente y errores
     "IOLClient",
