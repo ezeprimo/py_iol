@@ -105,6 +105,18 @@ def _to_optional_int(value: Any) -> Optional[int]:
     return None
 
 
+def _first_present(data: dict, *keys: str) -> Any:
+    """Devuelve el valor de la primera clave presente en el dict.
+
+    A diferencia de ``data.get(a) or data.get(b)`` no se rompe con
+    valores falsy legítimos (``0``, ``0.0``, ``""``).
+    """
+    for key in keys:
+        if key in data:
+            return data[key]
+    return None
+
+
 @dataclass
 class Punta:
     """Modelo para las puntas de compra y venta"""
@@ -1594,15 +1606,19 @@ class ComisionesCPD:
     @classmethod
     def from_dict(cls, data: dict) -> "ComisionesCPD":
         """Crea una instancia de ComisionesCPD desde un diccionario"""
-        comision = _to_float(data.get("comision") or data.get("comisiones"))
-        iva_comision = _to_float(data.get("ivaComision") or data.get("iva"))
-        derechos = _to_float(data.get("derechosMercado") or data.get("derechos"))
-        iva_derechos = _to_float(data.get("ivaDerechos") or data.get("ivaDerechosMercado"))
+        comision = _to_float(_first_present(data, "comision", "comisiones"))
+        iva_comision = _to_float(_first_present(data, "ivaComision", "iva"))
+        derechos = _to_float(
+            _first_present(data, "derechoMercado", "derechosMercado", "derechos")
+        )
+        iva_derechos = _to_float(
+            _first_present(data, "ivaDerechoMercado", "ivaDerechosMercado", "ivaDerechos")
+        )
         arancel = _to_optional_float(data.get("arancel"))
-        otros = _to_optional_float(data.get("otrosGastos") or data.get("otros"))
+        otros = _to_optional_float(_first_present(data, "otrosGastos", "otros"))
 
         # Calcular total si no viene
-        total = _to_optional_float(data.get("totalGastos") or data.get("total"))
+        total = _to_optional_float(_first_present(data, "totalGastos", "total"))
         if total is None:
             total = comision + iva_comision + derechos + iva_derechos
             if arancel is not None:
@@ -1618,7 +1634,7 @@ class ComisionesCPD:
             arancel=arancel,
             otros_gastos=otros,
             total_gastos=total,
-            monto_neto=_to_optional_float(data.get("montoNeto")),
+            monto_neto=_to_optional_float(_first_present(data, "montoInversion", "montoNeto")),
             importe=_to_optional_float(data.get("importe")),
             plazo=_to_optional_int(data.get("plazo")),
             tasa=_to_optional_float(data.get("tasa")),
@@ -2113,13 +2129,53 @@ class EstimacionMEP:
     @classmethod
     def from_dict(cls, data: dict) -> "EstimacionMEP":
         """Crea una instancia de EstimacionMEP desde un diccionario"""
+        # Payloads reales (v0.1.x):
+        #  - compra:  montoDolar, montoBrutoPesos, montoNetoPesos,
+        #             comisionCompra, comisionCompraIVA, derechoMercadoCompra
+        #  - venta:   montoPesos, montoBrutoDolar, montoNetoDolar,
+        #             comisionVenta, comisionVentaIVA, derechoMercadoVenta
+        es_compra = "montoPesos" not in data
+        monto_pesos = _to_float(
+            _first_present(data, "montoPesos", "montoBrutoPesos", "montoEnPesos")
+        )
+        monto_dolares = _to_float(
+            _first_present(data, "montoDolar", "montoBrutoDolar", "montoDolares", "montoEnDolares")
+        )
+        # La API no devuelve el tipo de cambio en este endpoint: se deriva de
+        # pesos/dólares (mismo criterio que tipo_cambio_efectivo).
+        tipo_cambio = _to_optional_float(_first_present(data, "tipoCambio", "cotizacionMep"))
+        if tipo_cambio is None and monto_dolares > 0:
+            tipo_cambio = monto_pesos / monto_dolares
+        if es_compra:
+            comision = _to_optional_float(
+                _first_present(data, "comisionCompra", "comision", "comisiones")
+            )
+            iva = _to_optional_float(_first_present(data, "comisionCompraIVA", "ivaComision"))
+            derechos = _to_optional_float(
+                _first_present(data, "derechoMercadoCompra", "derechoMercado")
+            )
+            costo_total = _to_optional_float(
+                _first_present(data, "montoNetoPesos", "costoTotal", "total")
+            )
+        else:
+            comision = _to_optional_float(
+                _first_present(data, "comisionVenta", "comision", "comisiones")
+            )
+            iva = _to_optional_float(_first_present(data, "comisionVentaIVA", "ivaComision"))
+            derechos = _to_optional_float(
+                _first_present(data, "derechoMercadoVenta", "derechoMercado")
+            )
+            costo_total = _to_optional_float(_first_present(data, "montoPesos", "costoTotal", "total"))
+        impuestos = None
+        if iva is not None or derechos is not None:
+            impuestos = (iva or 0.0) + (derechos or 0.0)
         return cls(
-            monto_pesos=_to_float(data.get("montoPesos") or data.get("montoEnPesos")),
-            monto_dolares=_to_float(data.get("montoDolares") or data.get("montoEnDolares")),
-            tipo_cambio=_to_float(data.get("tipoCambio") or data.get("cotizacionMep")),
-            comision=_to_optional_float(data.get("comision") or data.get("comisiones")),
-            impuestos=_to_optional_float(data.get("impuestos")),
-            costo_total=_to_optional_float(data.get("costoTotal") or data.get("total")),
+            monto_pesos=monto_pesos,
+            monto_dolares=monto_dolares,
+            tipo_cambio=tipo_cambio or 0.0,
+            comision=comision,
+            impuestos=impuestos,
+            costo_total=costo_total,
             titulo_utilizado=data.get("tituloUtilizado", data.get("simbolo")),
             cantidad_titulos=_to_optional_int(data.get("cantidadTitulos") or data.get("cantidad")),
             precio_compra=_to_optional_float(data.get("precioCompra")),
@@ -2149,7 +2205,7 @@ class ParametrosMEP:
     Contiene la configuración y límites para operar dólar MEP.
     """
 
-    id_tipo_operatoria: int  # ID del tipo de operatoria
+    id_tipo_operatoria: str  # ID del tipo de operatoria (ej: "mep")
     nombre: str  # Nombre de la operatoria
     descripcion: Optional[str] = None  # Descripción
     monto_minimo: Optional[float] = None  # Monto mínimo en pesos
@@ -2158,22 +2214,34 @@ class ParametrosMEP:
     horario_fin: Optional[str] = None  # Hora de fin de operaciones
     disponible: bool = True  # Si está disponible para operar
     titulo_default: Optional[str] = None  # Título por defecto (ej: AL30)
-    plazo: Optional[str] = None  # Plazo de liquidación
+    plazo: Optional[int] = None  # Plazo de liquidación
 
     @classmethod
     def from_dict(cls, data: dict) -> "ParametrosMEP":
         """Crea una instancia de ParametrosMEP desde un diccionario"""
+        # Payload real (v0.1.x): idTipoOperacion, montoLimiteMinimo/Maximo,
+        # esHorarioValido, horarioApertura/Cierre, simboloTituloCompra/Venta,
+        # idPlazoOperatoriaCompra/Venta
+        id_tipo = _first_present(data, "idTipoOperacion", "idTipoOperatoria", "id")
         return cls(
-            id_tipo_operatoria=_to_int(data.get("idTipoOperatoria") or data.get("id")),
+            id_tipo_operatoria=str(id_tipo) if id_tipo is not None else "",
             nombre=data.get("nombre", ""),
             descripcion=data.get("descripcion"),
-            monto_minimo=_to_optional_float(data.get("montoMinimo")),
-            monto_maximo=_to_optional_float(data.get("montoMaximo")),
-            horario_inicio=data.get("horarioInicio", data.get("horaInicio")),
-            horario_fin=data.get("horarioFin", data.get("horaFin")),
-            disponible=data.get("disponible", data.get("habilitado", True)),
-            titulo_default=data.get("tituloDefault", data.get("simbolo")),
-            plazo=data.get("plazo"),
+            monto_minimo=_to_optional_float(
+                _first_present(data, "montoLimiteMinimo", "montoMinimo")
+            ),
+            monto_maximo=_to_optional_float(
+                _first_present(data, "montoLimiteMaximo", "montoMaximo")
+            ),
+            horario_inicio=_first_present(data, "horarioApertura", "horarioInicio", "horaInicio"),
+            horario_fin=_first_present(data, "horarioCierre", "horarioFin", "horaFin"),
+            disponible=data.get(
+                "esHorarioValido", data.get("disponible", data.get("habilitado", True))
+            ),
+            titulo_default=_first_present(data, "simboloTituloCompra", "tituloDefault", "simbolo"),
+            plazo=_to_optional_int(
+                _first_present(data, "idPlazoOperatoriaCompra", "idPlazoOperatoriaVenta", "plazo")
+            ),
         )
 
     def __str__(self) -> str:
@@ -2204,9 +2272,18 @@ class ValidacionMEP:
     def from_dict(cls, data: dict) -> "ValidacionMEP":
         """Crea una instancia de ValidacionMEP desde un diccionario"""
         valido = data.get("valido", data.get("ok", data.get("esValido", True)))
+        mensaje = data.get("mensaje", data.get("message"))
+        if not mensaje:
+            # Payload real (v0.1.x): {"ok": false, "messages": [{"title", "description"}]}
+            textos = [
+                (m.get("description") or m.get("title") or "").strip()
+                for m in (data.get("messages") or [])
+                if isinstance(m, dict)
+            ]
+            mensaje = "; ".join(t for t in textos if t) or None
         return cls(
             valido=valido,
-            mensaje=data.get("mensaje", data.get("message")),
+            mensaje=mensaje,
             monto_ajustado=_to_optional_float(data.get("montoAjustado")),
             error_codigo=data.get("errorCodigo", data.get("codigoError")),
         )
