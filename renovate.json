@@ -1,0 +1,36 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":preserveSemverRanges"],
+  "description": "Python + uv project (requires-python >=3.8) with GitHub Actions workflows.",
+  "enabledManagers": ["uv", "github-actions"],
+  "timezone": "America/Argentina/Buenos_Aires",
+  "schedule": ["before 6am on Monday"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on Monday"]
+  },
+  "constraints": {
+    "python": "3.8"
+  },
+  "packageRules": [
+    {
+      "description": "Group non-major updates into one weekly PR.",
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "non-major dependencies",
+      "groupSlug": "non-major",
+      "schedule": ["before 6am on Monday"]
+    },
+    {
+      "description": "Automerge patch-level dev updates only; Renovate merges solely when CI checks are green.",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "platformAutomerge": true
+    },
+    {
+      "description": "Never automerge major updates; they need human review.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
+  ]
+}
